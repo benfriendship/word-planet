@@ -89,7 +89,7 @@ const KEY = "vocab-app-v1";
 function load() {
   try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; }
 }
-// 兩個孩子預設都從同一份 Google 試算表抓單字（2026-11-25 Ben 指定），手機不用另外設定
+// 兩個孩子預設都從同一份 Google 試算表抓單字，各讀自己名字的分頁（Ethan／Justin）（2026-11-25 Ben 指定）
 const DEFAULT_SHEET = "https://docs.google.com/spreadsheets/d/1G0-2gCxME40guRl5h4ehmTT4DV7Pkz7d05DCIGsgNC0/edit";
 const OLD_SHEETS = ["1lKaVKEaJsgoNyCk_vx6WGFQm_p821aVN10hwRXoAMks"];
 let db = load();
@@ -318,7 +318,7 @@ function readImpRows() {
 const syncMsg = {};
 function sheetParts(url) {
   const id = (String(url).match(/\/d\/([A-Za-z0-9_-]{20,})/) || String(url).match(/^([A-Za-z0-9_-]{20,})$/) || [])[1];
-  const gid = (String(url).match(/[#&?]gid=(\d+)/) || [])[1] || "0";
+  const gid = (String(url).match(/[#&?]gid=(\d+)/) || [])[1] || "";
   return id ? { id, gid } : null;
 }
 function parseCSV(text) {
@@ -341,7 +341,9 @@ async function syncSheet(id) {
   show("🔄 抓取中…");
   let text;
   try {
-    const r = await fetch(`https://docs.google.com/spreadsheets/d/${sp.id}/gviz/tq?tqx=out:csv&gid=${sp.gid}&t=${Date.now()}`);
+    // 網址有指定分頁（gid）就用它；沒有就讀跟孩子同名的分頁（Ethan／Justin）
+    const tab = sp.gid ? `gid=${sp.gid}` : `sheet=${encodeURIComponent(KIDS[id].label)}`;
+    const r = await fetch(`https://docs.google.com/spreadsheets/d/${sp.id}/gviz/tq?tqx=out:csv&${tab}&t=${Date.now()}`);
     text = await r.text();
     if (!r.ok || /^\s*<!DOCTYPE|<html/i.test(text)) throw new Error("locked");
   } catch {
@@ -357,7 +359,7 @@ async function syncSheet(id) {
     rows[r].forEach((v, c) => { if (r0 < 0 && names.includes(lc(v))) { r0 = r; c0 = c; } });
   const otherNames = Object.keys(KIDS).filter(k => k !== id).flatMap(k => [db[k].name, KIDS[k].label]).map(lc);
   const otherHasSection = rows.slice(0, 3).some(row => row.some(v => otherNames.includes(lc(v))));
-  if (r0 < 0 && otherHasSection) return show(`⚠️ 試算表裡找不到「${db[id].name}」這一區（最上面要有名字）`);
+  if (r0 < 0 && otherHasSection) return show(`⚠️ 試算表裡找不到「${KIDS[id].label}」分頁（分頁名稱和 A1 格都要寫 ${KIDS[id].label}）`);
   let ci = { en: 0, zh: 1, ex: -1 }, start = 0;
   const hr = r0 >= 0 ? r0 + 1 : 0;                          // 標題列
   const lo = c0 >= 0 ? c0 : 0;                              // 這一區從哪一欄開始
