@@ -75,6 +75,13 @@
 <div class="wrap" id="app"></div>
 
 <script>
+// 在 LINE 裡打開時，改用手機的瀏覽器開（Android：Chrome／iPhone：Safari）。
+// LINE 內建瀏覽器常常不能發音，資料也跟一般瀏覽器分開存。
+if (/\bLine\//i.test(navigator.userAgent) && !/openExternalBrowser=1/.test(location.search)) {
+  const u = new URL(location.href);
+  u.searchParams.set("openExternalBrowser", "1");
+  location.replace(u.toString());
+}
 // ===== 單字 =====
 // 2026-11-25 Ben 決定拿掉內建單字，全部由家長自己加（老師的單字表）
 
@@ -141,8 +148,8 @@ function unlockAudio() {
   player.src = silentWav();
   player.play().catch(() => {});
 }
-document.addEventListener("touchend", unlockAudio, { once: true });
-document.addEventListener("click", unlockAudio, { once: true });
+document.addEventListener("touchend", unlockAudio, { once: true, capture: true });
+document.addEventListener("click", unlockAudio, { once: true, capture: true });
 
 async function lookupAudio(word) {
   const key = word.toLowerCase();
@@ -162,6 +169,8 @@ async function lookupAudio(word) {
 // 先把接下來要用的字查好，播放時才不會等
 function prefetchAudio(words) { words.forEach(w => /^[A-Za-z'-]+$/.test(w.en) && lookupAudio(w.en)); }
 
+// 這個瀏覽器能不能用語音念（LINE 內建瀏覽器常常不行）
+function canTTS() { return !!window.speechSynthesis && typeof window.SpeechSynthesisUtterance === "function"; }
 // 挑手機裡最標準的美式語音：高品質版本優先，避開搞笑音效類語音
 const GOOD_VOICES = ["Samantha", "Ava", "Allison", "Susan", "Zoe", "Nicky", "Evan", "Tom", "Joelle", "Noelle",
   "Google US English", "Microsoft Aria", "Microsoft Jenny", "Microsoft Guy"];
@@ -176,9 +185,9 @@ function pickVoice() {
   };
   bestVoice = us.sort((a, b) => score(a) - score(b))[0] || vs.find(v => /^en/i.test(v.lang)) || null;
 }
-if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+if (canTTS()) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
 function ttsSpeak(text) {
-  if (!("speechSynthesis" in window)) return;
+  if (!(canTTS())) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "en-US"; u.rate = 0.85;
@@ -186,17 +195,38 @@ function ttsSpeak(text) {
   if (bestVoice) u.voice = bestVoice;
   speechSynthesis.speak(u);
 }
-async function speak(text) {
+function speakFallback(text) {
+  if (canTTS()) return ttsSpeak(text);
+  toast("這個瀏覽器沒辦法念這句，請用 Chrome 或 Safari 打開單字星球");
+}
+function playUrl(url, text) {
+  player.onerror = () => speakFallback(text);              // 錄音載不下來 → 改用語音
+  player.src = url;
+  const p = player.play();
+  if (p) p.catch(err => { if (err.name !== "AbortError") speakFallback(text); });
+}
+function speak(text) {
   player.pause();
-  if ("speechSynthesis" in window) speechSynthesis.cancel();
-  if (/^[A-Za-z'-]+$/.test(text)) {                         // 單一個字才查真人錄音
-    const url = await lookupAudio(text);
-    if (url) {
-      player.src = url;
-      try { await player.play(); return; } catch {}         // 播不出來就改用語音
+  if (canTTS()) speechSynthesis.cancel();
+  const key = text.toLowerCase();
+  if (/^[A-Za-z'-]+$/.test(text)) {                         // 單一個字才用真人錄音
+    if (key in audioUrls) {                                 // 查過：在點擊當下直接播（Android 比較不會擋）
+      return audioUrls[key] ? playUrl(audioUrls[key], text) : speakFallback(text);
     }
+    return lookupAudio(text).then(url => url ? playUrl(url, text) : speakFallback(text));
   }
-  ttsSpeak(text);
+  speakFallback(text);
+}
+let toastTimer;
+function toast(msg) {
+  let el = document.getElementById("toast");
+  if (!el) {
+    el = document.createElement("div"); el.id = "toast";
+    el.style.cssText = "position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + 20px);background:#3a2e22;color:#fff;padding:14px 16px;border-radius:14px;font-size:16px;text-align:center;z-index:9;box-shadow:0 6px 20px #0003";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg; el.style.display = "block";
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.style.display = "none", 3500);
 }
 
 // ===== 畫面 =====
