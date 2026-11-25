@@ -453,12 +453,16 @@ function showList(id) {
 }
 
 // --- 家長區 ---
+// 家長區暫時隱藏的區塊（2026-11-25 Ben 要求先隱藏；改成 true 就會再出現）
+const SHOW_NAME_EDIT = false, SHOW_PHOTO_IMPORT = false;
 function showParent() {
   screen = "parent";
   cur = null;
-  app.innerHTML = header("⚙️ 家長區", "home") + Object.keys(KIDS).map(id => `
+  app.innerHTML = header("⚙️ 家長區", "home") + (SHOW_NAME_EDIT ? Object.keys(KIDS).map(id => `
     <div class="card"><label>名字（${KIDS[id].born} 年生）</label>
-      <input data-name="${id}" value="${esc(db[id].name)}" maxlength="10"></div>`).join("") + `
+      <input data-name="${id}" value="${esc(db[id].name)}" maxlength="10"></div>`).join("") : "") +
+    // 隱藏時，捷徑帶單字進來仍會顯示這塊，才看得到要匯入的清單
+    (SHOW_PHOTO_IMPORT || impRows.length || impStatus ? `
     <div class="card"><b>📷 拍照匯入老師的單字表</b>
       <label>給誰</label><select id="impWho"><option value="big">${esc(db.big.name)}</option><option value="small">${esc(db.small.name)}</option></select>
       ${impStatus ? `<div id="impStatus" style="margin:12px 0;padding:12px;border-radius:14px;background:#fff1d6;font-weight:700">${esc(impStatus)}</div>` : ""}
@@ -484,7 +488,7 @@ function showParent() {
           <input data-imp="${i}:zh" value="${esc(r.zh)}" placeholder="中文" style="flex:1">
           <button class="del" data-impdel="${i}">✕</button></div>`).join("")}</div>
         <button class="btn green" data-import style="width:100%;margin-top:8px">✅ 匯入這 ${impRows.length} 個字</button>` : ""}
-    </div>
+    </div>` : "") + `
     <div class="card"><b>➕ 加自己的單字</b>
       <label>給誰</label><select id="who"><option value="big">${esc(db.big.name)}</option><option value="small">${esc(db.small.name)}</option></select>
       <label>英文</label><input id="en" placeholder="例如 pencil" autocapitalize="off">
