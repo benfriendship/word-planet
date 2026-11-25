@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffb84d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="單字星球">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>單字星球</title>
+<style>
+  :root {
+    --bg: #fff8ec; --card: #ffffff; --ink: #3a2e22; --muted: #8a7a68;
+    --big: #4f8cff; --small: #ff7aa8; --accent: #ffb84d;
+    --ok: #34c17a; --bad: #ff5a5a; --radius: 22px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, "PingFang TC", "Noto Sans TC", sans-serif; }
+  body { min-height: 100dvh; padding: env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 16px); }
+  .wrap { max-width: 480px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 10px; padding: 14px 0; min-height: 64px; }
+  header h1 { font-size: 22px; margin: 0; flex: 1; }
+  .back { border: 0; background: #fff; border-radius: 14px; width: 44px; height: 44px; font-size: 22px; box-shadow: 0 2px 6px #0001; }
+  .stars { font-weight: 700; background: #fff; padding: 8px 12px; border-radius: 14px; box-shadow: 0 2px 6px #0001; }
+  .card { background: var(--card); border-radius: var(--radius); padding: 20px; box-shadow: 0 4px 14px #0000000f; margin-bottom: 14px; }
+  .kid { display: flex; align-items: center; gap: 16px; border: 0; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+  .kid .face { font-size: 52px; width: 80px; height: 80px; border-radius: 24px; display: grid; place-items: center; }
+  .kid.big .face { background: #e3edff; } .kid.small .face { background: #ffe4ee; }
+  .kid b { font-size: 22px; display: block; }
+  .kid span { color: var(--muted); font-size: 15px; }
+  .menu { display: grid; gap: 14px; }
+  .btn { border: 0; border-radius: var(--radius); padding: 20px; font: inherit; font-size: 20px; font-weight: 700; color: #fff; cursor: pointer; box-shadow: 0 4px 0 #0002; }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #0002; }
+  .btn.blue { background: var(--big); } .btn.pink { background: var(--small); }
+  .btn.orange { background: var(--accent); } .btn.gray { background: #b9ad9f; }
+  .btn.green { background: var(--ok); }
+  .btn small { display: block; font-weight: 400; font-size: 14px; opacity: .9; margin-top: 4px; }
+  .progress { height: 12px; background: #f0e6d8; border-radius: 99px; overflow: hidden; margin: 10px 0 4px; }
+  .progress i { display: block; height: 100%; background: var(--ok); border-radius: 99px; transition: width .3s; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .flash { text-align: center; padding: 28px 20px; }
+  .emoji { font-size: 96px; line-height: 1.1; }
+  .word { font-size: 44px; font-weight: 800; letter-spacing: 1px; margin: 10px 0 4px; }
+  .zh { font-size: 24px; color: var(--muted); }
+  .ex { font-size: 18px; margin-top: 14px; background: #fff8ec; padding: 12px; border-radius: 14px; }
+  .speak { border: 0; background: #fff1d6; border-radius: 50%; width: 64px; height: 64px; font-size: 30px; margin-top: 14px; cursor: pointer; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .q { text-align: center; }
+  .q .prompt { font-size: 26px; font-weight: 700; margin: 6px 0 16px; }
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .opt { background: #fff; border: 3px solid #f0e6d8; border-radius: 18px; padding: 18px 8px; font: inherit; font-size: 22px; font-weight: 700; color: var(--ink); cursor: pointer; min-height: 84px; }
+  .opt.pic { font-size: 56px; padding: 10px; }
+  .opt.right { border-color: var(--ok); background: #e5f8ee; }
+  .opt.wrong { border-color: var(--bad); background: #ffe9e9; }
+  .slots { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin: 10px 0 16px; min-height: 54px; }
+  .slot { width: 40px; height: 50px; border-bottom: 4px solid #d8cbb8; font-size: 30px; font-weight: 800; display: grid; place-items: center; }
+  .tiles { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+  .tile { width: 50px; height: 54px; border: 0; border-radius: 14px; background: var(--big); color: #fff; font-size: 26px; font-weight: 800; box-shadow: 0 3px 0 #0003; cursor: pointer; }
+  .tile:disabled { opacity: .25; }
+  .feedback { font-size: 22px; font-weight: 800; min-height: 34px; margin-top: 12px; }
+  .feedback.ok { color: var(--ok); } .feedback.no { color: var(--bad); }
+  .done { text-align: center; padding: 30px 20px; }
+  .done .emoji { font-size: 80px; }
+  label { display: block; font-weight: 700; margin: 12px 0 6px; }
+  input, select { width: 100%; font: inherit; font-size: 18px; padding: 12px; border-radius: 12px; border: 2px solid #eadfcd; background: #fff; }
+  .list { list-style: none; padding: 0; margin: 0; }
+  .list li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f3ebdf; }
+  .list li span { flex: 1; }
+  .del { border: 0; background: #ffe9e9; color: var(--bad); border-radius: 10px; padding: 6px 10px; font: inherit; }
+  @keyframes pop { 0% { transform: scale(.6); opacity: 0 } 100% { transform: scale(1); opacity: 1 } }
+  .pop { animation: pop .25s ease-out; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script>
+// ===== 單字庫 =====
+// 老二（約 8 歲）：看圖、聽音，主題是身邊看得到的東西
+const WORDS_SMALL = [
+  ["cat","貓","🐱"],["dog","狗","🐶"],["bird","鳥","🐦"],["fish","魚","🐟"],["pig","豬","🐷"],
+  ["cow","牛","🐮"],["duck","鴨子","🦆"],["rabbit","兔子","🐰"],["apple","蘋果","🍎"],["banana","香蕉","🍌"],
+  ["grape","葡萄","🍇"],["orange","柳橙","🍊"],["egg","蛋","🥚"],["milk","牛奶","🥛"],["cake","蛋糕","🍰"],
+  ["red","紅色","🟥"],["blue","藍色","🟦"],["green","綠色","🟩"],["yellow","黃色","🟨"],["ball","球","⚾"],
+  ["sun","太陽","☀️"],["moon","月亮","🌙"],["star","星星","⭐"],["tree","樹","🌳"],["flower","花","🌸"],
+  ["car","車子","🚗"],["bus","公車","🚌"],["book","書","📖"],["cap","帽子","🧢"],["hand","手","✋"]
+].map(([en,zh,emoji]) => ({en, zh, emoji}));
+
+// 老大（約 10 歲）：看中文、拼字、例句，主題是學校、棒球、生活
+const WORDS_BIG = [
+  ["baseball","棒球","⚾","I play baseball on Sunday."],["glove","手套","🧤","My glove is brown."],
+  ["team","隊伍","🧢","We are a good team."],["coach","教練","📣","Our coach is very kind."],
+  ["catch","接住","🙌","Catch the ball!"],["throw","丟、投","🤾","Throw the ball to me."],
+  ["run","跑","🏃","I run fast."],["jump","跳","🦘","Rabbits can jump high."],
+  ["swim","游泳","🏊","I swim in summer."],["read","閱讀","📚","I read a book every night."],
+  ["write","寫","✍️","Write your name here."],["school","學校","🏫","I go to school by bus."],
+  ["teacher","老師","🧑‍🏫","My teacher is funny."],["student","學生","🎒","I am a student."],
+  ["homework","功課","📝","I do my homework after dinner."],["breakfast","早餐","🍳","I eat eggs for breakfast."],
+  ["lunch","午餐","🍱","Lunch is ready!"],["dinner","晚餐","🍽️","We have dinner at seven."],
+  ["water","水","💧","Drink some water."],["hungry","餓的","😋","I am hungry."],
+  ["happy","開心的","😄","I am happy today."],["tired","累的","😴","I am tired after practice."],
+  ["family","家人","👨‍👩‍👧‍👦","I love my family."],["brother","兄弟","👦","My brother likes baseball."],
+  ["sister","姊妹","👧","My sister can sing."],["rainy","下雨的","🌧️","It is rainy today."],
+  ["sunny","晴朗的","☀️","It is sunny and hot."],["Monday","星期一","📅","See you on Monday."],
+  ["weekend","週末","🎉","We play on the weekend."],["friend","朋友","🤝","You are my friend."]
+].map(([en,zh,emoji,ex]) => ({en, zh, emoji, ex}));
+
+const KIDS = {
+  big:   { label: "老大", born: 2016, face: "🦁", color: "blue",  base: WORDS_BIG },
+  small: { label: "老二", born: 2018, face: "🐰", color: "pink",  base: WORDS_SMALL }
+};
+
+// ===== 存檔（存在這支手機的瀏覽器裡）=====
+const KEY = "vocab-app-v1";
+function load() {
+  try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; }
+}
+let db = load();
+for (const id in KIDS) db[id] = Object.assign({ name: KIDS[id].label, stars: 0, box: {}, custom: [] }, db[id]);
+function save() { localStorage.setItem(KEY, JSON.stringify(db)); }
+
+function wordsOf(id) { return [...KIDS[id].base, ...db[id].custom]; }
+function boxOf(id, en) { return db[id].box[en] || 0; }           // 0 = 還沒看過
+function setBox(id, en, b) { db[id].box[en] = Math.max(1, Math.min(5, b)); save(); }
+function learnedCount(id) { return wordsOf(id).filter(w => boxOf(id, w.en) >= 4).length; }
+
+// 盒子越低越常出現：先挑低盒子，同盒子隨機
+function pickWords(id, n) {
+  return wordsOf(id)
+    .map(w => ({ w, k: boxOf(id, w.en) === 0 ? 0.5 : boxOf(id, w.en), r: Math.random() }))
+    .sort((a, b) => a.k - b.k || a.r - b.r)
+    .slice(0, n).map(x => x.w);
+}
+const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+// ===== 發音（手機內建語音）=====
+function speak(text) {
+  if (!("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "en-US"; u.rate = 0.8;
+  const v = speechSynthesis.getVoices().find(v => v.lang.startsWith("en"));
+  if (v) u.voice = v;
+  speechSynthesis.speak(u);
+}
+
+// ===== 畫面 =====
+const app = document.getElementById("app");
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+let cur = null; // 目前角色 id
+
+function header(title, back) {
+  return `<header>${back ? `<button class="back" data-go="${back}" aria-label="返回">‹</button>` : ""}
+    <h1>${title}</h1>${cur ? `<div class="stars">⭐ ${db[cur].stars}</div>` : ""}</header>`;
+}
+
+function showHome() {
+  cur = null;
+  app.innerHTML = header("🌍 單字星球") + Object.keys(KIDS).map(id => {
+    const k = KIDS[id], total = wordsOf(id).length, got = learnedCount(id);
+    return `<button class="card kid ${id}" data-kid="${id}">
+      <div class="face">${k.face}</div>
+      <div style="flex:1"><b>${esc(db[id].name)}</b>
+        <span>⭐ ${db[id].stars}　學會 ${got} / ${total} 個字</span>
+        <div class="progress"><i style="width:${total ? got / total * 100 : 0}%"></i></div></div>
+    </button>`;
+  }).join("") + `<p class="muted" style="text-align:center">點自己的角色開始 👆</p>
+    <div style="text-align:center"><button class="btn gray" data-go="parent" style="font-size:16px;padding:12px 20px">⚙️ 家長區</button></div>`;
+}
+
+function showKid(id) {
+  cur = id;
+  const k = KIDS[id], total = wordsOf(id).length, got = learnedCount(id);
+  app.innerHTML = header(`${k.face} ${esc(db[id].name)}`, "home") + `
+    <div class="card"><div style="display:flex;justify-content:space-between"><b>學會的單字</b><span>${got} / ${total}</span></div>
+      <div class="progress"><i style="width:${got / total * 100}%"></i></div>
+      <div class="muted">答對越多次，單字就越「熟」；不熟的字會更常出現</div></div>
+    <div class="menu">
+      <button class="btn ${k.color}" data-go="cards">📖 單字卡<small>看圖、聽發音，一次 10 個字</small></button>
+      <button class="btn orange" data-go="quiz">🎯 小測驗<small>${id === "small" ? "聽聲音、選圖片" : "選英文、拼拼看"}，答對拿星星</small></button>
+    </div>`;
+}
+
+// --- 單字卡 ---
+let deck = [], di = 0;
+function startCards() { deck = pickWords(cur, 10); di = 0; showCard(); }
+function showCard() {
+  if (di >= deck.length) return showDone("📖 這組看完了！", "去做小測驗，拿星星吧 🎯", "quiz");
+  const w = deck[di];
+  app.innerHTML = header(`📖 ${di + 1} / ${deck.length}`, "kid") + `
+    <div class="card flash pop">
+      <div class="emoji">${w.emoji || "🔤"}</div>
+      <div class="word">${esc(w.en)}</div>
+      <div class="zh">${esc(w.zh)}</div>
+      ${cur === "big" && w.ex ? `<div class="ex">${esc(w.ex)}</div>` : ""}
+      <button class="speak" data-say="${esc(w.en)}" aria-label="發音">🔊</button>
+      ${cur === "big" && w.ex ? `<button class="speak" data-say="${esc(w.ex)}" aria-label="念例句" style="width:auto;border-radius:20px;padding:0 16px;font-size:16px">🔊 例句</button>` : ""}
+    </div>
+    <div class="row">
+      <button class="btn gray" data-card="again">🤔 再看看</button>
+      <button class="btn green" data-card="ok">😎 我會了</button>
+    </div>`;
+  setTimeout(() => speak(w.en), 250);
+}
+function cardAnswer(ok) {
+  const w = deck[di], b = boxOf(cur, w.en);
+  setBox(cur, w.en, ok ? Math.max(b, 1) + 1 : 1);
+  di++; showCard();
+}
+
+// --- 小測驗 ---
+let qs = [], qi = 0, score = 0, locked = false;
+function startQuiz() {
+  const pool = wordsOf(cur);
+  if (pool.length < 4) return alert("單字至少要 4 個才能測驗喔");
+  qs = pickWords(cur, 10).map(w => {
+    const others = shuffle(pool.filter(x => x.en !== w.en)).slice(0, 3);
+    const opts = shuffle([w, ...others]);
+    let type;
+    if (cur === "small") type = Math.random() < 0.6 ? "listen" : "picword";
+    else type = (w.en.length <= 8 && Math.random() < 0.4) ? "spell" : "zh2en";
+    return { w, opts, type };
+  });
+  qi = 0; score = 0; showQ();
+}
+function showQ() {
+  locked = false;
+  if (qi >= qs.length) {
+    db[cur].stars += score; save();
+    const msg = score >= 9 ? "太厲害了！🏆" : score >= 6 ? "很棒喔！再一次會更好 💪" : "沒關係，多看幾次單字卡就會了 🌱";
+    return showDone(`答對 ${score} / ${qs.length} 題`, `拿到 ⭐ × ${score}　${msg}`, "quiz");
+  }
+  const { w, opts, type } = qs[qi];
+  let body = "";
+  if (type === "listen") {
+    body = `<div class="prompt">聽聽看，是哪一個？</div>
+      <button class="speak" data-say="${esc(w.en)}" style="width:90px;height:90px;font-size:44px;margin:0 0 18px">🔊</button>
+      <div class="opts">${opts.map(o => `<button class="opt pic" data-ans="${esc(o.en)}">${o.emoji}</button>`).join("")}</div>`;
+    setTimeout(() => speak(w.en), 300);
+  } else if (type === "picword") {
+    body = `<div class="emoji">${w.emoji}</div><div class="prompt">這個英文是？</div>
+      <div class="opts">${opts.map(o => `<button class="opt" data-ans="${esc(o.en)}">${esc(o.en)}</button>`).join("")}</div>`;
+  } else if (type === "zh2en") {
+    body = `<div class="emoji" style="font-size:64px">${w.emoji}</div><div class="prompt">「${esc(w.zh)}」的英文是？</div>
+      <div class="opts">${opts.map(o => `<button class="opt" data-ans="${esc(o.en)}">${esc(o.en)}</button>`).join("")}</div>`;
+  } else {
+    const letters = shuffle(w.en.split(""));
+    body = `<div class="emoji" style="font-size:64px">${w.emoji}</div><div class="prompt">拼出「${esc(w.zh)}」</div>
+      <div class="slots" id="slots">${w.en.split("").map(() => `<div class="slot"></div>`).join("")}</div>
+      <div class="tiles">${letters.map((c, i) => `<button class="tile" data-tile="${i}" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>
+      <div style="margin-top:14px"><button class="btn gray" data-undo style="font-size:16px;padding:10px 18px">⌫ 退一格</button></div>`;
+    spelled = [];
+  }
+  app.innerHTML = header(`🎯 第 ${qi + 1} / ${qs.length} 題`, "kid") +
+    `<div class="card q pop">${body}<div class="feedback" id="fb"></div></div>`;
+}
+function judge(ok) {
+  locked = true;
+  const { w } = qs[qi], b = boxOf(cur, w.en);
+  setBox(cur, w.en, ok ? Math.max(b, 1) + 1 : 1);
+  if (ok) score++;
+  const fb = document.getElementById("fb");
+  fb.className = "feedback " + (ok ? "ok" : "no");
+  fb.textContent = ok ? "答對了！⭐" : `答案是 ${w.en}（${w.zh}）`;
+  speak(w.en);
+  setTimeout(() => { qi++; showQ(); }, ok ? 1100 : 2200);
+}
+let spelled = [];
+function tapTile(btn) {
+  const { w } = qs[qi];
+  spelled.push(btn); btn.disabled = true;
+  const slots = document.querySelectorAll("#slots .slot");
+  slots[spelled.length - 1].textContent = btn.dataset.c;
+  if (spelled.length === w.en.length) judge(spelled.map(b => b.dataset.c).join("") === w.en);
+}
+function undoTile() {
+  const btn = spelled.pop(); if (!btn) return;
+  btn.disabled = false;
+  document.querySelectorAll("#slots .slot")[spelled.length].textContent = "";
+}
+
+function showDone(title, sub, again) {
+  app.innerHTML = header("🎉 完成", "kid") + `
+    <div class="card done pop"><div class="emoji">🏅</div><h2>${title}</h2><p>${sub}</p></div>
+    <div class="row"><button class="btn gray" data-go="kid">回首頁</button>
+      <button class="btn orange" data-go="${again}">${again === "quiz" ? "🎯 再測一次" : "📖 單字卡"}</button></div>`;
+}
+
+// --- 家長區 ---
+function showParent() {
+  cur = null;
+  app.innerHTML = header("⚙️ 家長區", "home") + Object.keys(KIDS).map(id => `
+    <div class="card"><label>${KIDS[id].face} 名字（${KIDS[id].born} 年生）</label>
+      <input data-name="${id}" value="${esc(db[id].name)}" maxlength="10"></div>`).join("") + `
+    <div class="card"><b>➕ 加自己的單字</b>
+      <label>給誰</label><select id="who"><option value="big">${esc(db.big.name)}</option><option value="small">${esc(db.small.name)}</option></select>
+      <label>英文</label><input id="en" placeholder="例如 pencil" autocapitalize="off">
+      <label>中文</label><input id="zh" placeholder="例如 鉛筆">
+      <label>圖示（可不填）</label><input id="emo" placeholder="例如 ✏️">
+      <label>例句（可不填，老大才會顯示）</label><input id="ex" placeholder="例如 I have a pencil.">
+      <button class="btn green" data-add style="width:100%;margin-top:14px">加進去</button></div>
+    <div class="card"><b>自己加的單字</b><ul class="list">${
+      Object.keys(KIDS).flatMap(id => db[id].custom.map((w, i) =>
+        `<li><span>${w.emoji || "🔤"} <b>${esc(w.en)}</b> ${esc(w.zh)} <span class="muted">· ${esc(db[id].name)}</span></span>
+         <button class="del" data-del="${id}:${i}">刪除</button></li>`)).join("") || `<li class="muted">還沒有</li>`
+    }</ul></div>
+    <div class="card"><button class="btn gray" data-reset style="width:100%;font-size:16px">重設學習進度與星星</button>
+      <p class="muted">只清掉進度和星星，自己加的單字會留著。</p></div>`;
+}
+
+// ===== 點擊處理 =====
+app.addEventListener("click", e => {
+  const t = e.target.closest("button"); if (!t) return;
+  const d = t.dataset;
+  if (d.kid) return showKid(d.kid);
+  if (d.go === "home") return showHome();
+  if (d.go === "kid") return showKid(cur);
+  if (d.go === "cards") return startCards();
+  if (d.go === "quiz") return startQuiz();
+  if (d.go === "parent") return showParent();
+  if (d.say) return speak(d.say);
+  if (d.card) return cardAnswer(d.card === "ok");
+  if (d.ans !== undefined && !locked) {
+    const ok = d.ans === qs[qi].w.en;
+    t.classList.add(ok ? "right" : "wrong");
+    if (!ok) app.querySelector(`[data-ans="${CSS.escape(qs[qi].w.en)}"]`)?.classList.add("right");
+    return judge(ok);
+  }
+  if (d.tile !== undefined && !locked) return tapTile(t);
+  if ("undo" in d && !locked) return undoTile();
+  if ("add" in d) {
+    const v = id => document.getElementById(id).value.trim();
+    const en = v("en"), zh = v("zh");
+    if (!en || !zh) return alert("英文和中文都要填喔");
+    const who = v("who");
+    db[who].custom.push({ en, zh, emoji: v("emo") || "🔤", ex: v("ex") });
+    save(); return showParent();
+  }
+  if (d.del) { const [id, i] = d.del.split(":"); db[id].custom.splice(+i, 1); save(); return showParent(); }
+  if ("reset" in d && confirm("確定要重設兩個孩子的進度和星星嗎？")) {
+    for (const id in KIDS) { db[id].box = {}; db[id].stars = 0; }
+    save(); return showParent();
+  }
+});
+app.addEventListener("change", e => {
+  const id = e.target.dataset.name;
+  if (id) { db[id].name = e.target.value.trim() || KIDS[id].label; save(); }
+});
+if ("speechSynthesis" in window) speechSynthesis.getVoices(); // 先載入語音清單
+
+showHome();
+</script>
+</body>
+</html>
