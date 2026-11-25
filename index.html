@@ -454,7 +454,7 @@ function showList(id) {
 
 // --- 家長區 ---
 // 家長區暫時隱藏的區塊（2026-11-25 Ben 要求先隱藏；改成 true 就會再出現）
-const SHOW_NAME_EDIT = false, SHOW_PHOTO_IMPORT = false;
+const SHOW_NAME_EDIT = false, SHOW_PHOTO_IMPORT = false, SHOW_SHEET_SYNC = false; // 試算表隱藏後仍會在打開 App 時自動抓
 function showParent() {
   screen = "parent";
   cur = null;
@@ -496,7 +496,7 @@ function showParent() {
       <label>圖示（可不填）</label><input id="emo" placeholder="例如 ✏️">
       <label>例句（可不填，老大才會顯示）</label><input id="ex" placeholder="例如 I have a pencil.">
       <button class="btn green" data-add style="width:100%;margin-top:14px">加進去</button></div>
-    <div class="card"><b>🔄 從 Google 試算表抓單字</b>
+    ${SHOW_SHEET_SYNC ? `<div class="card"><b>🔄 從 Google 試算表抓單字</b>
       <p class="muted">已經有的單字不會重複加；還沒填中文的先跳過。</p>
       ${Object.keys(KIDS).map(id => `
         <label>${esc(db[id].name)} 的試算表網址</label>
@@ -504,7 +504,7 @@ function showParent() {
         <button class="btn ${KIDS[id].color}" data-sync="${id}" style="width:100%;margin-top:8px;font-size:17px;padding:14px">🔄 抓 ${esc(db[id].name)} 的新單字</button>
         ${db[id].lastSync ? `<div class="muted" style="margin-top:4px">上次抓取：${fmtTime(db[id].lastSync)}</div>` : ""}
         ${syncMsg[id] ? `<div style="white-space:pre-line;margin-top:8px;padding:10px;border-radius:12px;background:#fff1d6">${esc(syncMsg[id])}</div>` : ""}`).join("")}
-    </div>
+    </div>` : ""}
     <div class="card"><b>📋 單字總表</b>
       <p class="muted">看每個孩子有哪些單字、什麼時候加的、熟練到哪裡，也可以在這裡刪除。</p>
       <div class="row">${Object.keys(KIDS).map(id => `<button class="btn ${KIDS[id].color}" data-list="${id}" style="font-size:17px;padding:14px">${esc(db[id].name)}<small>${db[id].custom.length} 個字</small></button>`).join("")}</div></div>
