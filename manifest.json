@@ -2,7 +2,7 @@
   "name": "單字星球",
   "short_name": "單字星球",
   "start_url": "./",
-  "display": "standalone",
+  "display": "browser",
   "background_color": "#fff8ec",
   "theme_color": "#ffb84d",
   "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
