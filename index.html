@@ -489,13 +489,9 @@ function showParent() {
           <button class="del" data-impdel="${i}">✕</button></div>`).join("")}</div>
         <button class="btn green" data-import style="width:100%;margin-top:8px">✅ 匯入這 ${impRows.length} 個字</button>` : ""}
     </div>` : "") + `
-    <div class="card"><b>➕ 加自己的單字</b>
-      <label>給誰</label><select id="who"><option value="big">${esc(db.big.name)}</option><option value="small">${esc(db.small.name)}</option></select>
-      <label>英文</label><input id="en" placeholder="例如 pencil" autocapitalize="off">
-      <label>中文</label><input id="zh" placeholder="例如 鉛筆">
-      <label>圖示（可不填）</label><input id="emo" placeholder="例如 ✏️">
-      <label>例句（可不填，老大才會顯示）</label><input id="ex" placeholder="例如 I have a pencil.">
-      <button class="btn green" data-add style="width:100%;margin-top:14px">加進去</button></div>
+    <div class="card"><b>📋 單字總表</b>
+      <p class="muted">看每個孩子有哪些單字、什麼時候加的、熟練到哪裡，也可以在這裡刪除。</p>
+      <div class="row">${Object.keys(KIDS).map(id => `<button class="btn ${KIDS[id].color}" data-list="${id}" style="font-size:17px;padding:14px">${esc(db[id].name)}<small>${db[id].custom.length} 個字</small></button>`).join("")}</div></div>
     ${SHOW_SHEET_SYNC ? `<div class="card"><b>🔄 從 Google 試算表抓單字</b>
       <p class="muted">已經有的單字不會重複加；還沒填中文的先跳過。</p>
       ${Object.keys(KIDS).map(id => `
@@ -505,9 +501,13 @@ function showParent() {
         ${db[id].lastSync ? `<div class="muted" style="margin-top:4px">上次抓取：${fmtTime(db[id].lastSync)}</div>` : ""}
         ${syncMsg[id] ? `<div style="white-space:pre-line;margin-top:8px;padding:10px;border-radius:12px;background:#fff1d6">${esc(syncMsg[id])}</div>` : ""}`).join("")}
     </div>` : ""}
-    <div class="card"><b>📋 單字總表</b>
-      <p class="muted">看每個孩子有哪些單字、什麼時候加的、熟練到哪裡，也可以在這裡刪除。</p>
-      <div class="row">${Object.keys(KIDS).map(id => `<button class="btn ${KIDS[id].color}" data-list="${id}" style="font-size:17px;padding:14px">${esc(db[id].name)}<small>${db[id].custom.length} 個字</small></button>`).join("")}</div></div>
+    <div class="card"><b>➕ 加自己的單字</b>
+      <label>給誰</label><select id="who"><option value="big">${esc(db.big.name)}</option><option value="small">${esc(db.small.name)}</option></select>
+      <label>英文</label><input id="en" placeholder="例如 pencil" autocapitalize="off">
+      <label>中文</label><input id="zh" placeholder="例如 鉛筆">
+      <label>圖示（可不填）</label><input id="emo" placeholder="例如 ✏️">
+      <label>例句（可不填，老大才會顯示）</label><input id="ex" placeholder="例如 I have a pencil.">
+      <button class="btn green" data-add style="width:100%;margin-top:14px">加進去</button></div>
     <div class="card"><button class="btn gray" data-reset style="width:100%;font-size:16px">重設學習進度與星星</button>
       <p class="muted">只清掉進度和星星，單字會留著。</p></div>`;
 }
