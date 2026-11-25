@@ -116,15 +116,87 @@ function pickWords(id, n) {
 const hasPic = w => w.emoji && w.emoji !== "🔤";
 const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
-// ===== 發音（手機內建語音）=====
-function speak(text) {
+// ===== 發音 =====
+// 單字優先播「真人美式錄音」（免費字典 dictionaryapi.dev，只送出單字本身）；
+// 沒有錄音的（片語、例句）改用手機裡最標準的美式語音。
+const AUDIO_KEY = "vocab-audio-v1";
+let audioUrls = {};
+try { audioUrls = JSON.parse(localStorage.getItem(AUDIO_KEY)) || {}; } catch {}
+const player = new Audio();
+player.preload = "auto";
+// 0.1 秒的無聲音檔（用程式產生）
+function silentWav() {
+  const n = 800, b = new ArrayBuffer(44 + n), v = new DataView(b), w = (o, t) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); v.setUint32(4, 36 + n, true); w(8, "WAVE"); w(12, "fmt "); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 8000, true);
+  v.setUint16(32, 1, true); v.setUint16(34, 8, true); w(36, "data"); v.setUint32(40, n, true);
+  for (let k = 0; k < n; k++) v.setUint8(44 + k, 128);
+  let bin = ""; new Uint8Array(b).forEach(x => bin += String.fromCharCode(x));
+  return "data:audio/wav;base64," + btoa(bin);
+}
+// iPhone 要先在「手指點擊」裡播過一次，之後才能自動播放
+let unlocked = false;
+function unlockAudio() {
+  if (unlocked) return; unlocked = true;
+  player.src = silentWav();
+  player.play().catch(() => {});
+}
+document.addEventListener("touchend", unlockAudio, { once: true });
+document.addEventListener("click", unlockAudio, { once: true });
+
+async function lookupAudio(word) {
+  const key = word.toLowerCase();
+  if (key in audioUrls) return audioUrls[key];
+  let url = "";
+  try {
+    const r = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(key)}`);
+    if (r.ok) {
+      const all = (await r.json()).flatMap(e => e.phonetics || []).map(p => p.audio).filter(Boolean);
+      url = all.find(u => /-us\.mp3$/.test(u)) || "";        // 只要美式錄音
+    }
+  } catch { return ""; }                                     // 網路問題：不記錄，下次再試
+  audioUrls[key] = url;
+  localStorage.setItem(AUDIO_KEY, JSON.stringify(audioUrls));
+  return url;
+}
+// 先把接下來要用的字查好，播放時才不會等
+function prefetchAudio(words) { words.forEach(w => /^[A-Za-z'-]+$/.test(w.en) && lookupAudio(w.en)); }
+
+// 挑手機裡最標準的美式語音：高品質版本優先，避開搞笑音效類語音
+const GOOD_VOICES = ["Samantha", "Ava", "Allison", "Susan", "Zoe", "Nicky", "Evan", "Tom", "Joelle", "Noelle",
+  "Google US English", "Microsoft Aria", "Microsoft Jenny", "Microsoft Guy"];
+const SILLY = /Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Fred|Good News|Jester|Junior|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Ralph|Kathy|Grandpa|Grandma|Rocko|Shelley|Eddy|Flo|Reed|Sandy/i;
+let bestVoice = null;
+function pickVoice() {
+  const vs = speechSynthesis.getVoices().filter(v => !SILLY.test(v.name));
+  const us = vs.filter(v => /^en[-_]US$/i.test(v.lang));
+  const score = v => {
+    const i = GOOD_VOICES.findIndex(n => v.name.includes(n));
+    return (i < 0 ? 100 : i) - (/premium/i.test(v.name) ? 60 : /enhanced/i.test(v.name) ? 40 : 0);
+  };
+  bestVoice = us.sort((a, b) => score(a) - score(b))[0] || vs.find(v => /^en/i.test(v.lang)) || null;
+}
+if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+function ttsSpeak(text) {
   if (!("speechSynthesis" in window)) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = "en-US"; u.rate = 0.8;
-  const v = speechSynthesis.getVoices().find(v => v.lang.startsWith("en"));
-  if (v) u.voice = v;
+  u.lang = "en-US"; u.rate = 0.85;
+  if (!bestVoice) pickVoice();
+  if (bestVoice) u.voice = bestVoice;
   speechSynthesis.speak(u);
+}
+async function speak(text) {
+  player.pause();
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  if (/^[A-Za-z'-]+$/.test(text)) {                         // 單一個字才查真人錄音
+    const url = await lookupAudio(text);
+    if (url) {
+      player.src = url;
+      try { await player.play(); return; } catch {}         // 播不出來就改用語音
+    }
+  }
+  ttsSpeak(text);
 }
 
 // ===== 畫面 =====
@@ -167,7 +239,7 @@ function showKid(id) {
 let deck = [], di = 0;
 function startCards() {
   if (!wordsOf(cur).length) return alert("還沒有單字喔！請爸爸媽媽到「⚙️ 家長區」加單字");
-  deck = pickWords(cur, 10); di = 0; showCard();
+  deck = pickWords(cur, 10); di = 0; prefetchAudio(deck); showCard();
 }
 function showCard() {
   if (di >= deck.length) return showDone("📖 這組看完了！", "去做小測驗，拿星星吧 🎯", "quiz");
@@ -206,7 +278,7 @@ function startQuiz() {
     else type = (w.en.length <= 8 && Math.random() < 0.4) ? "spell" : "zh2en";
     return { w, opts, type };
   });
-  qi = 0; score = 0; showQ();
+  qi = 0; score = 0; prefetchAudio(qs.map(q => q.w)); showQ();
 }
 function showQ() {
   locked = false;
@@ -585,7 +657,6 @@ app.addEventListener("change", e => {
   const id = e.target.dataset.name;
   if (id) { db[id].name = e.target.value.trim() || KIDS[id].label; save(); }
 });
-if ("speechSynthesis" in window) speechSynthesis.getVoices(); // 先載入語音清單
 
 window.addEventListener("hashchange", () => sheetFromLink() || importFromLink());
 if (!sheetFromLink() && !importFromLink()) showHome();
@@ -594,6 +665,7 @@ if (!sheetFromLink() && !importFromLink()) showHome();
   for (const id in KIDS) {
     const before = db[id].custom.length;
     await syncSheet(id);
+    prefetchAudio(wordsOf(id));
     if (db[id].custom.length !== before && screen !== "parent" && !cur) showHome();
   }
 })();
