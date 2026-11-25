@@ -109,8 +109,8 @@ const WORDS_BIG = [
 ].map(([en,zh,emoji,ex]) => ({en, zh, emoji, ex}));
 
 const KIDS = {
-  big:   { label: "老大", born: 2016, face: "🦁", color: "blue",  base: WORDS_BIG },
-  small: { label: "老二", born: 2018, face: "🐰", color: "pink",  base: WORDS_SMALL }
+  big:   { label: "Ethan", old: "老大", born: 2016, face: "🦁", color: "blue",  base: WORDS_BIG },
+  small: { label: "Justin", old: "老二", born: 2018, face: "🐰", color: "pink",  base: WORDS_SMALL }
 };
 
 // ===== 存檔（存在這支手機的瀏覽器裡）=====
@@ -119,7 +119,10 @@ function load() {
   try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; }
 }
 let db = load();
-for (const id in KIDS) db[id] = Object.assign({ name: KIDS[id].label, stars: 0, box: {}, custom: [] }, db[id]);
+for (const id in KIDS) {
+  db[id] = Object.assign({ name: KIDS[id].label, stars: 0, box: {}, custom: [] }, db[id]);
+  if (db[id].name === KIDS[id].old) db[id].name = KIDS[id].label; // 舊預設名改成新名字
+}
 function save() { localStorage.setItem(KEY, JSON.stringify(db)); }
 
 function wordsOf(id) { return [...KIDS[id].base, ...db[id].custom]; }
@@ -127,13 +130,15 @@ function boxOf(id, en) { return db[id].box[en] || 0; }           // 0 = 還沒�
 function setBox(id, en, b) { db[id].box[en] = Math.max(1, Math.min(5, b)); save(); }
 function learnedCount(id) { return wordsOf(id).filter(w => boxOf(id, w.en) >= 4).length; }
 
-// 盒子越低越常出現：先挑低盒子，同盒子隨機
+// 盒子越低越常出現：先挑低盒子，同盒子隨機；家長加的（老師的單字）再優先一點
 function pickWords(id, n) {
+  const mine = new Set(db[id].custom.map(w => w.en));
   return wordsOf(id)
-    .map(w => ({ w, k: boxOf(id, w.en) === 0 ? 0.5 : boxOf(id, w.en), r: Math.random() }))
+    .map(w => ({ w, k: (boxOf(id, w.en) === 0 ? 0.5 : boxOf(id, w.en)) - (mine.has(w.en) ? 0.4 : 0), r: Math.random() }))
     .sort((a, b) => a.k - b.k || a.r - b.r)
     .slice(0, n).map(x => x.w);
 }
+const hasPic = w => w.emoji && w.emoji !== "🔤";
 const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 // ===== 發音（手機內建語音）=====
@@ -220,7 +225,7 @@ function startQuiz() {
     const others = shuffle(pool.filter(x => x.en !== w.en)).slice(0, 3);
     const opts = shuffle([w, ...others]);
     let type;
-    if (cur === "small") type = Math.random() < 0.6 ? "listen" : "picword";
+    if (cur === "small") type = (hasPic(w) && Math.random() < 0.4) ? "picword" : "listen";
     else type = (w.en.length <= 8 && Math.random() < 0.4) ? "spell" : "zh2en";
     return { w, opts, type };
   });
@@ -238,10 +243,10 @@ function showQ() {
   if (type === "listen") {
     body = `<div class="prompt">聽聽看，是哪一個？</div>
       <button class="speak" data-say="${esc(w.en)}" style="width:90px;height:90px;font-size:44px;margin:0 0 18px">🔊</button>
-      <div class="opts">${opts.map(o => `<button class="opt pic" data-ans="${esc(o.en)}">${o.emoji}</button>`).join("")}</div>`;
+      <div class="opts">${opts.map(o => hasPic(o) ? `<button class="opt pic" data-ans="${esc(o.en)}">${o.emoji}</button>` : `<button class="opt" data-ans="${esc(o.en)}">${esc(o.en)}</button>`).join("")}</div>`;
     setTimeout(() => speak(w.en), 300);
   } else if (type === "picword") {
-    body = `<div class="emoji">${w.emoji}</div><div class="prompt">這個英文是？</div>
+    body = `<div class="emoji">${w.emoji}</div><div class="prompt">這個英文是？（${esc(w.zh)}）</div>
       <div class="opts">${opts.map(o => `<button class="opt" data-ans="${esc(o.en)}">${esc(o.en)}</button>`).join("")}</div>`;
   } else if (type === "zh2en") {
     body = `<div class="emoji" style="font-size:64px">${w.emoji}</div><div class="prompt">「${esc(w.zh)}」的英文是？</div>
@@ -289,12 +294,68 @@ function showDone(title, sub, again) {
       <button class="btn orange" data-go="${again}">${again === "quiz" ? "🎯 再測一次" : "📖 單字卡"}</button></div>`;
 }
 
+// --- 匯入單字表 ---
+// 把貼上的文字拆成 { en, zh }。支援「pencil 鉛筆」同一行，
+// 也支援原況文字常見的「英文一欄、中文一欄」分開排列（照順序配對）。
+let impText = "", impRows = [];
+function parseList(text) {
+  const clean = s => s
+    .replace(/^\s*[\(\[]?\d+[\.\)\]、:：]?\s*/, "")             // 開頭編號 1. 2) ③
+    .replace(/\b(n|v|adj|adv|prep|pron|conj|phr|vt|vi)\.\s*/gi, "") // 詞性 n. v.
+    .replace(/[\(（]\s*(n|v|adj|adv|prep|pron)\.?\s*[\)）]/gi, "")
+    .trim();
+  const lines = text.split(/\r?\n/).map(clean).filter(Boolean);
+  const pairs = [], enOnly = [], zhOnly = [];
+  // 標題、姓名欄這類不是單字的行，直接跳過
+  const isHeader = l => /\d/.test(l) && !/^[\u3400-\u9fff]/.test(l) && /[A-Za-z]/.test(l) && !/[\u3400-\u9fff]/.test(l)
+    || /^(unit|lesson|words?|vocabulary|spelling|name|date|class|week|no)\b/i.test(l)
+    || /^[^A-Za-z]*(第.{1,3}[課週]|單元|單字|生字|姓名|日期|座號|班級|年.{0,2}班)/.test(l);
+  for (const line of lines.filter(l => !isHeader(l))) {
+    const en = (line.match(/[A-Za-z][A-Za-z'’\- ]*[A-Za-z]|[A-Za-z]/) || [""])[0].replace(/\s+/g, " ").trim();
+    const zh = (line.match(/[㐀-鿿][㐀-鿿、，,；;\/ ～~（）()…]*/g) || []).join(" ")
+      .replace(/[，,；;\/ ]+$/, "").trim();
+    if (en && zh) pairs.push({ en, zh });
+    else if (en) enOnly.push(en);
+    else if (zh) zhOnly.push(zh);
+  }
+  // 英文、中文分在兩欄時，照順序配對；配不齊的也列出來讓家長補
+  const n = Math.max(enOnly.length, zhOnly.length);
+  for (let i = 0; i < n; i++) if (enOnly[i]) pairs.push({ en: enOnly[i], zh: zhOnly[i] || "" });
+  const seen = new Set();
+  return pairs.filter(p => p.en.length > 1 || /^[aI]$/.test(p.en))
+    .filter(p => !seen.has(p.en.toLowerCase()) && seen.add(p.en.toLowerCase()));
+}
+function readImpRows() {
+  document.querySelectorAll("[data-imp]").forEach(inp => {
+    const [i, k] = inp.dataset.imp.split(":"); impRows[+i][k] = inp.value.trim();
+  });
+  impText = document.getElementById("impText")?.value || impText;
+}
+
 // --- 家長區 ---
 function showParent() {
   cur = null;
   app.innerHTML = header("⚙️ 家長區", "home") + Object.keys(KIDS).map(id => `
     <div class="card"><label>${KIDS[id].face} 名字（${KIDS[id].born} 年生）</label>
       <input data-name="${id}" value="${esc(db[id].name)}" maxlength="10"></div>`).join("") + `
+    <div class="card"><b>📷 拍照匯入老師的單字表</b>
+      <ol class="muted" style="padding-left:20px;line-height:1.7;margin:8px 0">
+        <li>用 iPhone 相機拍單字表</li>
+        <li>打開那張照片，點右下角的「原況文字」圖示（方框裡有字的那個）</li>
+        <li>長按文字 →「全選」→「拷貝」</li>
+        <li>回到這裡，貼在下面的框框，按「整理單字」</li>
+      </ol>
+      <label>給誰</label><select id="impWho"><option value="big">${esc(db.big.name)}</option><option value="small">${esc(db.small.name)}</option></select>
+      <label>貼上單字表</label>
+      <textarea id="impText" rows="6" placeholder="例如：&#10;1. pencil 鉛筆&#10;2. eraser 橡皮擦" style="width:100%;font:inherit;font-size:17px;padding:12px;border-radius:12px;border:2px solid #eadfcd">${esc(impText)}</textarea>
+      <button class="btn orange" data-parse style="width:100%;margin-top:12px">✨ 整理單字</button>
+      ${impRows.length ? `<p class="muted">找到 ${impRows.length} 個字，請檢查一下（可直接修改，不要的按 ✕）：</p>
+        <div id="impRows">${impRows.map((r, i) => `<div style="display:flex;gap:6px;margin-bottom:6px">
+          <input data-imp="${i}:en" value="${esc(r.en)}" placeholder="英文" autocapitalize="off" style="flex:1">
+          <input data-imp="${i}:zh" value="${esc(r.zh)}" placeholder="中文" style="flex:1">
+          <button class="del" data-impdel="${i}">✕</button></div>`).join("")}</div>
+        <button class="btn green" data-import style="width:100%;margin-top:8px">✅ 匯入這 ${impRows.length} 個字</button>` : ""}
+    </div>
     <div class="card"><b>➕ 加自己的單字</b>
       <label>給誰</label><select id="who"><option value="big">${esc(db.big.name)}</option><option value="small">${esc(db.small.name)}</option></select>
       <label>英文</label><input id="en" placeholder="例如 pencil" autocapitalize="off">
@@ -338,6 +399,33 @@ app.addEventListener("click", e => {
     const who = v("who");
     db[who].custom.push({ en, zh, emoji: v("emo") || "🔤", ex: v("ex") });
     save(); return showParent();
+  }
+  if ("parse" in d) {
+    impText = document.getElementById("impText").value;
+    impRows = parseList(impText);
+    if (!impRows.length) alert("沒找到英文單字，確認一下有沒有貼上喔");
+    const who = document.getElementById("impWho").value;
+    showParent(); document.getElementById("impWho").value = who;
+    return document.getElementById("impRows")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  if (d.impdel !== undefined) {
+    const who = document.getElementById("impWho").value;
+    readImpRows(); impRows.splice(+d.impdel, 1);
+    showParent(); document.getElementById("impWho").value = who; return;
+  }
+  if ("import" in d) {
+    readImpRows();
+    const who = document.getElementById("impWho").value;
+    const missing = impRows.filter(r => !r.en || !r.zh);
+    if (missing.length) return alert(`還有 ${missing.length} 個字沒填中文或英文，補上或按 ✕ 刪掉再匯入`);
+    const have = new Set(wordsOf(who).map(w => w.en.toLowerCase()));
+    const add = impRows.filter(r => !have.has(r.en.toLowerCase()));
+    add.forEach(r => db[who].custom.push({ en: r.en, zh: r.zh, emoji: "🔤", ex: "" }));
+    save();
+    const skip = impRows.length - add.length;
+    impRows = []; impText = "";
+    alert(`匯入 ${add.length} 個字給 ${db[who].name}！${skip ? `（${skip} 個本來就有，跳過）` : ""}\n新的字會優先出現在單字卡和測驗。`);
+    return showParent();
   }
   if (d.del) { const [id, i] = d.del.split(":"); db[id].custom.splice(+i, 1); save(); return showParent(); }
   if ("reset" in d && confirm("確定要重設兩個孩子的進度和星星嗎？")) {
