@@ -307,6 +307,78 @@ function readImpRows() {
   impText = document.getElementById("impText")?.value || impText;
 }
 
+// --- Google 試算表同步 ---
+// 試算表要設成「知道連結的任何人：檢視者」，App 才讀得到。
+// 欄位：第一列標題有「英文」「中文」（可選「例句」）；沒有標題就當 A 欄英文、B 欄中文。
+const syncMsg = {};
+function sheetParts(url) {
+  const id = (String(url).match(/\/d\/([A-Za-z0-9_-]{20,})/) || String(url).match(/^([A-Za-z0-9_-]{20,})$/) || [])[1];
+  const gid = (String(url).match(/[#&?]gid=(\d+)/) || [])[1] || "0";
+  return id ? { id, gid } : null;
+}
+function parseCSV(text) {
+  const rows = []; let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
+    else if (c === '"') q = true;
+    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
+    else cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows.map(r => r.map(x => x.trim())).filter(r => r.some(Boolean));
+}
+async function syncSheet(id) {
+  const sp = sheetParts(db[id].sheet || "");
+  const show = m => { syncMsg[id] = m; if (screen === "parent") showParent(); };
+  if (!sp) return show("⚠️ 先貼上試算表網址");
+  show("🔄 抓取中…");
+  let text;
+  try {
+    const r = await fetch(`https://docs.google.com/spreadsheets/d/${sp.id}/gviz/tq?tqx=out:csv&gid=${sp.gid}&t=${Date.now()}`);
+    text = await r.text();
+    if (!r.ok || /^\s*<!DOCTYPE|<html/i.test(text)) throw new Error("locked");
+  } catch {
+    return show("⚠️ 讀不到試算表。請確認試算表已設成「知道連結的任何人：檢視者」，網路也有連上");
+  }
+  const rows = parseCSV(text);
+  let ci = { en: 0, zh: 1, ex: -1 }, start = 0;
+  const head = (rows[0] || []).map(h => h.toLowerCase());
+  const find = re => head.findIndex(h => re.test(h));
+  if (find(/英文|english|word|單字/) >= 0) {
+    ci = { en: find(/英文|english|word|單字/), zh: find(/中文|chinese|meaning|意思|翻譯/), ex: find(/例句|example|sentence/) };
+    start = 1;
+  }
+  const have = new Set(wordsOf(id).map(w => w.en.toLowerCase()));
+  const added = [], noZh = [], now = Date.now(); let dup = 0;
+  for (const r of rows.slice(start)) {
+    const en = (r[ci.en] || "").replace(/\s+/g, " ").trim(), zh = ci.zh >= 0 ? (r[ci.zh] || "") : "";
+    if (!en || !/[A-Za-z]/.test(en)) continue;
+    if (have.has(en.toLowerCase())) { dup++; continue; }
+    if (!zh) { noZh.push(en); continue; }
+    have.add(en.toLowerCase());
+    db[id].custom.push({ en, zh, emoji: "🔤", ex: ci.ex >= 0 ? (r[ci.ex] || "") : "", added: now });
+    added.push(en);
+  }
+  db[id].lastSync = now; save();
+  const list = a => a.slice(0, 8).join("、") + (a.length > 8 ? "…" : "");
+  show([
+    added.length ? `✅ 新增 ${added.length} 個：${list(added)}` : "✅ 沒有新單字",
+    dup ? `已經有的 ${dup} 個，跳過` : "",
+    noZh.length ? `✏️ 還沒填中文的 ${noZh.length} 個（${list(noZh)}）先跳過，在試算表填好中文再按一次` : ""
+  ].filter(Boolean).join("\n"));
+}
+// 設定連結：…/word-planet/#sheet=big:<試算表網址或 ID>
+function sheetFromLink() {
+  const m = location.hash.match(/^#sheet=(big|small):(.+)$/);
+  if (!m) return false;
+  history.replaceState(null, "", location.pathname + location.search);
+  db[m[1]].sheet = decodeURIComponent(m[2]); save();
+  showParent(); syncSheet(m[1]);
+  return true;
+}
+
 // --- iPhone 捷徑匯入 ---
 // 捷徑拍照 → iPhone 內建文字辨識 → 打開 …/word-planet/#import=<單字表文字>
 // 「#」後面的內容不會傳到伺服器，只留在這支手機上
@@ -399,6 +471,15 @@ function showParent() {
       <label>圖示（可不填）</label><input id="emo" placeholder="例如 ✏️">
       <label>例句（可不填，老大才會顯示）</label><input id="ex" placeholder="例如 I have a pencil.">
       <button class="btn green" data-add style="width:100%;margin-top:14px">加進去</button></div>
+    <div class="card"><b>🔄 從 Google 試算表抓單字</b>
+      <p class="muted">已經有的單字不會重複加；還沒填中文的先跳過。</p>
+      ${Object.keys(KIDS).map(id => `
+        <label>${esc(db[id].name)} 的試算表網址</label>
+        <input data-sheet="${id}" value="${esc(db[id].sheet || "")}" placeholder="貼上 Google 試算表網址" autocapitalize="off">
+        <button class="btn ${KIDS[id].color}" data-sync="${id}" style="width:100%;margin-top:8px;font-size:17px;padding:14px">🔄 抓 ${esc(db[id].name)} 的新單字</button>
+        ${db[id].lastSync ? `<div class="muted" style="margin-top:4px">上次抓取：${fmtTime(db[id].lastSync)}</div>` : ""}
+        ${syncMsg[id] ? `<div style="white-space:pre-line;margin-top:8px;padding:10px;border-radius:12px;background:#fff1d6">${esc(syncMsg[id])}</div>` : ""}`).join("")}
+    </div>
     <div class="card"><b>📋 單字總表</b>
       <p class="muted">看每個孩子有哪些單字、什麼時候加的、熟練到哪裡，也可以在這裡刪除。</p>
       <div class="row">${Object.keys(KIDS).map(id => `<button class="btn ${KIDS[id].color}" data-list="${id}" style="font-size:17px;padding:14px">${esc(db[id].name)}<small>${db[id].custom.length} 個字</small></button>`).join("")}</div></div>
@@ -417,6 +498,7 @@ app.addEventListener("click", e => {
   if (d.go === "quiz") return startQuiz();
   if (d.go === "parent") return showParent();
   if (d.list) return showList(d.list);
+  if (d.sync) { const inp = app.querySelector(`[data-sheet="${d.sync}"]`); if (inp) { db[d.sync].sheet = inp.value.trim(); save(); } return syncSheet(d.sync); }
   if (d.say) return speak(d.say);
   if (d.card) return cardAnswer(d.card === "ok");
   if (d.ans !== undefined && !locked) {
@@ -474,13 +556,14 @@ app.addEventListener("click", e => {
   }
 });
 app.addEventListener("change", e => {
+  if (e.target.dataset.sheet) { db[e.target.dataset.sheet].sheet = e.target.value.trim(); save(); return; }
   const id = e.target.dataset.name;
   if (id) { db[id].name = e.target.value.trim() || KIDS[id].label; save(); }
 });
 if ("speechSynthesis" in window) speechSynthesis.getVoices(); // 先載入語音清單
 
-window.addEventListener("hashchange", importFromLink);
-if (!importFromLink()) showHome();
+window.addEventListener("hashchange", () => sheetFromLink() || importFromLink());
+if (!sheetFromLink() && !importFromLink()) showHome();
 </script>
 </body>
 </html>
