@@ -55,6 +55,11 @@
   .opt.wrong { border-color: var(--bad); background: #ffe9e9; }
   .slots { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin: 10px 0 16px; min-height: 54px; }
   .slot { width: 40px; height: 50px; border-bottom: 4px solid #d8cbb8; font-size: 30px; font-weight: 800; display: grid; place-items: center; }
+  .slots.long { gap: 2px; flex-wrap: nowrap; } .slots.long .slot { flex: 1 1 0; min-width: 0; max-width: 26px; width: auto; height: 44px; font-size: 22px; }
+  .slots.long .slot.gap { max-width: 10px; }
+  .slot.given { border-bottom-color: transparent; color: var(--muted); }
+  .slot.gap { width: 14px; border-bottom-color: transparent; }
+  .slot.blank { border-bottom-color: var(--accent); background: #fff8ec; border-radius: 8px 8px 0 0; color: var(--big); }
   .tiles { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
   .tile { width: 50px; height: 54px; border: 0; border-radius: 14px; background: var(--big); color: #fff; font-size: 26px; font-weight: 800; box-shadow: 0 3px 0 #0003; cursor: pointer; }
   .tile:disabled { opacity: .25; }
@@ -303,13 +308,35 @@ function startQuiz() {
   qs = pickWords(cur, 10).map(w => {
     const others = shuffle(pool.filter(x => x.en !== w.en)).slice(0, 3);
     const opts = shuffle([w, ...others]);
-    let type;
-    if (cur === "small") type = (hasPic(w) && Math.random() < 0.4) ? "picword" : "listen";
-    else type = (w.en.length <= 8 && Math.random() < 0.4) ? "spell" : "zh2en";
-    return { w, opts, type };
+    let type; const r = Math.random(), canBlank = letterIdx(w.en).length >= 3;
+    if (cur === "small") type = canBlank && r < 0.35 ? "blank" : (hasPic(w) && r < 0.6) ? "picword" : "listen";
+    else type = canBlank && r < 0.4 ? "blank" : (w.en.length <= 8 && r < 0.7) ? "spell" : "zh2en";
+    return { w, opts, type, blanks: type === "blank" ? chooseBlanks(cur, w.en) : null };
   });
   qi = 0; score = 0; prefetchAudio(qs.map(q => q.w)); showQ();
 }
+// --- 挖空格：每次挖不同的字母 ---
+// 記住每個字上次挖了哪幾格、每一格被挖過幾次；下次先挑「上次沒挖、被挖最少次」的位置
+function letterIdx(en) { return [...en].map((c, i) => /[A-Za-z]/.test(c) ? i : -1).filter(i => i >= 0); }
+function chooseBlanks(id, en) {
+  const idx = letterIdx(en), L = idx.length;
+  let n = id === "big" ? Math.min(4, Math.max(1, Math.round(L * 0.4))) : (L <= 4 ? 1 : 2);
+  n = Math.min(n, L - 1);                                   // 至少留一個字母當提示
+  db[id].blanks = db[id].blanks || {};
+  const key = en.toLowerCase(), h = db[id].blanks[key] || { last: [], used: {} };
+  const fresh = idx.filter(i => !h.last.includes(i)), old = idx.filter(i => h.last.includes(i));
+  const rank = arr => arr.map(i => ({ i, u: h.used[i] || 0, r: Math.random() }))
+    .sort((a, b) => a.u - b.u || a.r - b.r).map(x => x.i);
+  const pick = [...rank(fresh), ...rank(old)].slice(0, n).sort((a, b) => a - b);
+  pick.forEach(i => h.used[i] = (h.used[i] || 0) + 1);
+  h.last = pick; db[id].blanks[key] = h; save();
+  return pick;
+}
+function blankDecoys(id, missing) {
+  const k = id === "big" ? 2 : 1, abc = "abcdefghijklmnopqrstuvwxyz".split("").filter(c => !missing.includes(c));
+  return shuffle(abc).slice(0, k);
+}
+
 function showQ() {
   locked = false;
   if (qi >= qs.length) {
@@ -330,10 +357,22 @@ function showQ() {
   } else if (type === "zh2en") {
     body = `<div class="emoji" style="font-size:64px">${w.emoji}</div><div class="prompt">「${esc(w.zh)}」的英文是？</div>
       <div class="opts">${opts.map(o => `<button class="opt" data-ans="${esc(o.en)}">${esc(o.en)}</button>`).join("")}</div>`;
+  } else if (type === "blank") {
+    const { blanks } = qs[qi], missing = blanks.map(i => w.en[i].toLowerCase());
+    const tiles = shuffle([...missing, ...blankDecoys(cur, missing)]);
+    body = `<div class="emoji" style="font-size:56px">${hasPic(w) ? w.emoji : "✏️"}</div>
+      <div class="prompt">填空：「${esc(w.zh)}」</div>
+      <button class="speak" data-say="${esc(w.en)}" style="margin:0 0 6px">🔊</button>
+      <div class="slots ${w.en.length > 7 ? "long" : ""}" id="slots">${[...w.en].map((c, i) =>
+        blanks.includes(i) ? `<div class="slot blank"></div>` : c === " " ? `<div class="slot gap"></div>` : `<div class="slot given">${esc(c)}</div>`).join("")}</div>
+      <div class="tiles">${tiles.map((c, i) => `<button class="tile" data-tile="${i}" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>
+      <div style="margin-top:14px"><button class="btn gray" data-undo style="font-size:16px;padding:10px 18px">⌫ 退一格</button></div>`;
+    spelled = [];
+    if (cur === "small") setTimeout(() => speak(w.en), 300);
   } else {
     const letters = shuffle(w.en.split(""));
     body = `<div class="emoji" style="font-size:64px">${w.emoji}</div><div class="prompt">拼出「${esc(w.zh)}」</div>
-      <div class="slots" id="slots">${w.en.split("").map(() => `<div class="slot"></div>`).join("")}</div>
+      <div class="slots ${w.en.length > 7 ? "long" : ""}" id="slots">${w.en.split("").map(() => `<div class="slot"></div>`).join("")}</div>
       <div class="tiles">${letters.map((c, i) => `<button class="tile" data-tile="${i}" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>
       <div style="margin-top:14px"><button class="btn gray" data-undo style="font-size:16px;padding:10px 18px">⌫ 退一格</button></div>`;
     spelled = [];
@@ -353,17 +392,20 @@ function judge(ok) {
   setTimeout(() => { qi++; showQ(); }, ok ? 1100 : 2200);
 }
 let spelled = [];
+function fillSlots() { return document.querySelectorAll(qs[qi].type === "blank" ? "#slots .slot.blank" : "#slots .slot"); }
 function tapTile(btn) {
-  const { w } = qs[qi];
+  const { w, type, blanks } = qs[qi];
   spelled.push(btn); btn.disabled = true;
-  const slots = document.querySelectorAll("#slots .slot");
-  slots[spelled.length - 1].textContent = btn.dataset.c;
-  if (spelled.length === w.en.length) judge(spelled.map(b => b.dataset.c).join("") === w.en);
+  fillSlots()[spelled.length - 1].textContent = btn.dataset.c;
+  if (type === "blank") {
+    if (spelled.length === blanks.length)
+      judge(blanks.every((pos, k) => spelled[k].dataset.c === w.en[pos].toLowerCase()));
+  } else if (spelled.length === w.en.length) judge(spelled.map(b => b.dataset.c).join("") === w.en);
 }
 function undoTile() {
   const btn = spelled.pop(); if (!btn) return;
   btn.disabled = false;
-  document.querySelectorAll("#slots .slot")[spelled.length].textContent = "";
+  fillSlots()[spelled.length].textContent = "";
 }
 
 function showDone(title, sub, again) {
