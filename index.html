@@ -26,8 +26,7 @@
   .stars { font-weight: 700; background: #fff; padding: 8px 12px; border-radius: 14px; box-shadow: 0 2px 6px #0001; }
   .card { background: var(--card); border-radius: var(--radius); padding: 20px; box-shadow: 0 4px 14px #0000000f; margin-bottom: 14px; }
   .kid { display: flex; align-items: center; gap: 16px; border: 0; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
-  .kid .face { font-size: 52px; width: 80px; height: 80px; border-radius: 24px; display: grid; place-items: center; }
-  .kid.big .face { background: #e3edff; } .kid.small .face { background: #ffe4ee; }
+  .kid.big { border-left: 10px solid var(--big); } .kid.small { border-left: 10px solid var(--small); }
   .kid b { font-size: 22px; display: block; }
   .kid span { color: var(--muted); font-size: 15px; }
   .menu { display: grid; gap: 14px; }
@@ -67,7 +66,6 @@
   input, select { width: 100%; font: inherit; font-size: 18px; padding: 12px; border-radius: 12px; border: 2px solid #eadfcd; background: #fff; }
   .list { list-style: none; padding: 0; margin: 0; }
   .list li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f3ebdf; }
-  .list li span { flex: 1; }
   .del { border: 0; background: #ffe9e9; color: var(--bad); border-radius: 10px; padding: 6px 10px; font: inherit; }
   @keyframes pop { 0% { transform: scale(.6); opacity: 0 } 100% { transform: scale(1); opacity: 1 } }
   .pop { animation: pop .25s ease-out; }
@@ -77,39 +75,12 @@
 <div class="wrap" id="app"></div>
 
 <script>
-// ===== 單字庫 =====
-// 老二（約 8 歲）：看圖、聽音，主題是身邊看得到的東西
-const WORDS_SMALL = [
-  ["cat","貓","🐱"],["dog","狗","🐶"],["bird","鳥","🐦"],["fish","魚","🐟"],["pig","豬","🐷"],
-  ["cow","牛","🐮"],["duck","鴨子","🦆"],["rabbit","兔子","🐰"],["apple","蘋果","🍎"],["banana","香蕉","🍌"],
-  ["grape","葡萄","🍇"],["orange","柳橙","🍊"],["egg","蛋","🥚"],["milk","牛奶","🥛"],["cake","蛋糕","🍰"],
-  ["red","紅色","🟥"],["blue","藍色","🟦"],["green","綠色","🟩"],["yellow","黃色","🟨"],["ball","球","⚾"],
-  ["sun","太陽","☀️"],["moon","月亮","🌙"],["star","星星","⭐"],["tree","樹","🌳"],["flower","花","🌸"],
-  ["car","車子","🚗"],["bus","公車","🚌"],["book","書","📖"],["cap","帽子","🧢"],["hand","手","✋"]
-].map(([en,zh,emoji]) => ({en, zh, emoji}));
-
-// 老大（約 10 歲）：看中文、拼字、例句，主題是學校、棒球、生活
-const WORDS_BIG = [
-  ["baseball","棒球","⚾","I play baseball on Sunday."],["glove","手套","🧤","My glove is brown."],
-  ["team","隊伍","🧢","We are a good team."],["coach","教練","📣","Our coach is very kind."],
-  ["catch","接住","🙌","Catch the ball!"],["throw","丟、投","🤾","Throw the ball to me."],
-  ["run","跑","🏃","I run fast."],["jump","跳","🦘","Rabbits can jump high."],
-  ["swim","游泳","🏊","I swim in summer."],["read","閱讀","📚","I read a book every night."],
-  ["write","寫","✍️","Write your name here."],["school","學校","🏫","I go to school by bus."],
-  ["teacher","老師","🧑‍🏫","My teacher is funny."],["student","學生","🎒","I am a student."],
-  ["homework","功課","📝","I do my homework after dinner."],["breakfast","早餐","🍳","I eat eggs for breakfast."],
-  ["lunch","午餐","🍱","Lunch is ready!"],["dinner","晚餐","🍽️","We have dinner at seven."],
-  ["water","水","💧","Drink some water."],["hungry","餓的","😋","I am hungry."],
-  ["happy","開心的","😄","I am happy today."],["tired","累的","😴","I am tired after practice."],
-  ["family","家人","👨‍👩‍👧‍👦","I love my family."],["brother","兄弟","👦","My brother likes baseball."],
-  ["sister","姊妹","👧","My sister can sing."],["rainy","下雨的","🌧️","It is rainy today."],
-  ["sunny","晴朗的","☀️","It is sunny and hot."],["Monday","星期一","📅","See you on Monday."],
-  ["weekend","週末","🎉","We play on the weekend."],["friend","朋友","🤝","You are my friend."]
-].map(([en,zh,emoji,ex]) => ({en, zh, emoji, ex}));
+// ===== 單字 =====
+// 2026-11-25 Ben 決定拿掉內建單字，全部由家長自己加（老師的單字表）
 
 const KIDS = {
-  big:   { label: "Ethan", old: "老大", born: 2016, face: "🐆", color: "blue",  base: WORDS_BIG },
-  small: { label: "Justin", old: "老二", born: 2018, face: "🐰", color: "pink",  base: WORDS_SMALL }
+  big:   { label: "Ethan", old: "老大", born: 2016, color: "blue" },
+  small: { label: "Justin", old: "老二", born: 2018, color: "pink" }
 };
 
 // ===== 存檔（存在這支手機的瀏覽器裡）=====
@@ -124,7 +95,7 @@ for (const id in KIDS) {
 }
 function save() { localStorage.setItem(KEY, JSON.stringify(db)); }
 
-function wordsOf(id) { return [...KIDS[id].base, ...db[id].custom]; }
+function wordsOf(id) { return db[id].custom; }
 function boxOf(id, en) { return db[id].box[en] || 0; }           // 0 = 還沒看過
 function setBox(id, en, b) { db[id].box[en] = Math.max(1, Math.min(5, b)); save(); }
 function learnedCount(id) { return wordsOf(id).filter(w => boxOf(id, w.en) >= 4).length; }
@@ -166,7 +137,6 @@ function showHome() {
   app.innerHTML = header("🌍 單字星球") + Object.keys(KIDS).map(id => {
     const k = KIDS[id], total = wordsOf(id).length, got = learnedCount(id);
     return `<button class="card kid ${id}" data-kid="${id}">
-      <div class="face">${k.face}</div>
       <div style="flex:1"><b>${esc(db[id].name)}</b>
         <span>⭐ ${db[id].stars}　學會 ${got} / ${total} 個字</span>
         <div class="progress"><i style="width:${total ? got / total * 100 : 0}%"></i></div></div>
@@ -178,9 +148,9 @@ function showHome() {
 function showKid(id) {
   cur = id;
   const k = KIDS[id], total = wordsOf(id).length, got = learnedCount(id);
-  app.innerHTML = header(`${k.face} ${esc(db[id].name)}`, "home") + `
+  app.innerHTML = header(esc(db[id].name), "home") + `
     <div class="card"><div style="display:flex;justify-content:space-between"><b>學會的單字</b><span>${got} / ${total}</span></div>
-      <div class="progress"><i style="width:${got / total * 100}%"></i></div>
+      <div class="progress"><i style="width:${total ? got / total * 100 : 0}%"></i></div>
       <div class="muted">答對越多次，單字就越「熟」；不熟的字會更常出現</div></div>
     <div class="menu">
       <button class="btn ${k.color}" data-go="cards">📖 單字卡<small>看圖、聽發音，一次 10 個字</small></button>
@@ -190,7 +160,10 @@ function showKid(id) {
 
 // --- 單字卡 ---
 let deck = [], di = 0;
-function startCards() { deck = pickWords(cur, 10); di = 0; showCard(); }
+function startCards() {
+  if (!wordsOf(cur).length) return alert("還沒有單字喔！請爸爸媽媽到「⚙️ 家長區」加單字");
+  deck = pickWords(cur, 10); di = 0; showCard();
+}
 function showCard() {
   if (di >= deck.length) return showDone("📖 這組看完了！", "去做小測驗，拿星星吧 🎯", "quiz");
   const w = deck[di];
@@ -219,7 +192,7 @@ function cardAnswer(ok) {
 let qs = [], qi = 0, score = 0, locked = false;
 function startQuiz() {
   const pool = wordsOf(cur);
-  if (pool.length < 4) return alert("單字至少要 4 個才能測驗喔");
+  if (pool.length < 4) return alert(`單字至少要 4 個才能測驗喔（現在有 ${pool.length} 個）\n請爸爸媽媽到「⚙️ 家長區」加單字`);
   qs = pickWords(cur, 10).map(w => {
     const others = shuffle(pool.filter(x => x.en !== w.en)).slice(0, 3);
     const opts = shuffle([w, ...others]);
@@ -353,11 +326,45 @@ function importFromLink() {
   return true;
 }
 
+// --- 單字總表 ---
+let screen = "", listId = "big";
+function fmtTime(t) {
+  if (!t) return "";
+  const d = new Date(t), p = n => String(n).padStart(2, "0");
+  const y = d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + "/" : "";
+  return `${y}${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function level(id, en) {
+  const b = boxOf(id, en);
+  if (!b) return `<span class="muted">還沒練過</span>`;
+  return `<span title="熟練度 ${b}/5">${"●".repeat(b)}${"○".repeat(5 - b)}</span>${b >= 4 ? " ✅" : ""}`;
+}
+function wordRow(id, w, i) {
+  return `<li>${hasPic(w) ? `<span style="font-size:26px;flex:none">${w.emoji}</span>` : ""}
+    <span style="flex:1"><b style="font-size:19px">${esc(w.en)}</b>　${esc(w.zh)}<br>
+      <small class="muted">${level(id, w.en)}${w.added ? `　· ${fmtTime(w.added)} 加入` : i != null ? "　· 加入時間沒有記錄" : ""}</small></span>
+    ${i != null ? `<button class="del" data-del="${id}:${i}" style="flex:none">刪除</button>` : ""}</li>`;
+}
+function showList(id) {
+  screen = "list"; listId = id = id || listId; cur = null;
+  const mine = db[id].custom.map((w, i) => ({ w, i }))
+    .sort((a, b) => (b.w.added || 0) - (a.w.added || 0) || b.i - a.i);
+  const all = wordsOf(id);
+  app.innerHTML = header("📋 單字總表", "parent") + `
+    <div class="row" style="margin-bottom:14px">${Object.keys(KIDS).map(k =>
+      `<button class="btn ${k === id ? KIDS[k].color : "gray"}" data-list="${k}" style="font-size:17px;padding:12px">${esc(db[k].name)}</button>`).join("")}</div>
+    <div class="card"><b>${esc(db[id].name)}</b> 共 ${all.length} 個字，已學會 ${learnedCount(id)} 個
+      <div class="muted" style="margin-top:4px">●●●○○ 是熟練度，滿 4 顆算學會 ✅</div></div>
+    <div class="card"><b>📝 單字（新加的在上面）</b><ul class="list">${
+      mine.map(({ w, i }) => wordRow(id, w, i)).join("") || `<li class="muted">還沒有單字，回家長區加單字</li>`}</ul></div>`;
+}
+
 // --- 家長區 ---
 function showParent() {
+  screen = "parent";
   cur = null;
   app.innerHTML = header("⚙️ 家長區", "home") + Object.keys(KIDS).map(id => `
-    <div class="card"><label>${KIDS[id].face} 名字（${KIDS[id].born} 年生）</label>
+    <div class="card"><label>名字（${KIDS[id].born} 年生）</label>
       <input data-name="${id}" value="${esc(db[id].name)}" maxlength="10"></div>`).join("") + `
     <div class="card"><b>📷 拍照匯入老師的單字表</b>
       <label>給誰</label><select id="impWho"><option value="big">${esc(db.big.name)}</option><option value="small">${esc(db.small.name)}</option></select>
@@ -392,13 +399,11 @@ function showParent() {
       <label>圖示（可不填）</label><input id="emo" placeholder="例如 ✏️">
       <label>例句（可不填，老大才會顯示）</label><input id="ex" placeholder="例如 I have a pencil.">
       <button class="btn green" data-add style="width:100%;margin-top:14px">加進去</button></div>
-    <div class="card"><b>自己加的單字</b><ul class="list">${
-      Object.keys(KIDS).flatMap(id => db[id].custom.map((w, i) =>
-        `<li><span>${w.emoji || "🔤"} <b>${esc(w.en)}</b> ${esc(w.zh)} <span class="muted">· ${esc(db[id].name)}</span></span>
-         <button class="del" data-del="${id}:${i}">刪除</button></li>`)).join("") || `<li class="muted">還沒有</li>`
-    }</ul></div>
+    <div class="card"><b>📋 單字總表</b>
+      <p class="muted">看每個孩子有哪些單字、什麼時候加的、熟練到哪裡，也可以在這裡刪除。</p>
+      <div class="row">${Object.keys(KIDS).map(id => `<button class="btn ${KIDS[id].color}" data-list="${id}" style="font-size:17px;padding:14px">${esc(db[id].name)}<small>${db[id].custom.length} 個字</small></button>`).join("")}</div></div>
     <div class="card"><button class="btn gray" data-reset style="width:100%;font-size:16px">重設學習進度與星星</button>
-      <p class="muted">只清掉進度和星星，自己加的單字會留著。</p></div>`;
+      <p class="muted">只清掉進度和星星，單字會留著。</p></div>`;
 }
 
 // ===== 點擊處理 =====
@@ -411,6 +416,7 @@ app.addEventListener("click", e => {
   if (d.go === "cards") return startCards();
   if (d.go === "quiz") return startQuiz();
   if (d.go === "parent") return showParent();
+  if (d.list) return showList(d.list);
   if (d.say) return speak(d.say);
   if (d.card) return cardAnswer(d.card === "ok");
   if (d.ans !== undefined && !locked) {
@@ -426,7 +432,7 @@ app.addEventListener("click", e => {
     const en = v("en"), zh = v("zh");
     if (!en || !zh) return alert("英文和中文都要填喔");
     const who = v("who");
-    db[who].custom.push({ en, zh, emoji: v("emo") || "🔤", ex: v("ex") });
+    db[who].custom.push({ en, zh, emoji: v("emo") || "🔤", ex: v("ex"), added: Date.now() });
     save(); return showParent();
   }
   if ("parse" in d) {
@@ -449,14 +455,19 @@ app.addEventListener("click", e => {
     if (missing.length) return alert(`還有 ${missing.length} 個字沒填中文或英文，補上或按 ✕ 刪掉再匯入`);
     const have = new Set(wordsOf(who).map(w => w.en.toLowerCase()));
     const add = impRows.filter(r => !have.has(r.en.toLowerCase()));
-    add.forEach(r => db[who].custom.push({ en: r.en, zh: r.zh, emoji: "🔤", ex: "" }));
+    const now = Date.now();
+    add.forEach(r => db[who].custom.push({ en: r.en, zh: r.zh, emoji: "🔤", ex: "", added: now }));
     save();
     const skip = impRows.length - add.length;
     impRows = []; impText = ""; impStatus = "";
     alert(`匯入 ${add.length} 個字給 ${db[who].name}！${skip ? `（${skip} 個本來就有，跳過）` : ""}\n新的字會優先出現在單字卡和測驗。`);
     return showParent();
   }
-  if (d.del) { const [id, i] = d.del.split(":"); db[id].custom.splice(+i, 1); save(); return showParent(); }
+  if (d.del) {
+    const [id, i] = d.del.split(":"), w = db[id].custom[+i];
+    if (!w || !confirm(`確定要刪除「${w.en} ${w.zh}」嗎？`)) return;
+    db[id].custom.splice(+i, 1); save(); return screen === "list" ? showList(id) : showParent();
+  }
   if ("reset" in d && confirm("確定要重設兩個孩子的進度和星星嗎？")) {
     for (const id in KIDS) { db[id].box = {}; db[id].stars = 0; }
     save(); return showParent();
