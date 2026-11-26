@@ -31,7 +31,7 @@
   .kid span { color: var(--muted); font-size: 15px; }
   .menu { display: grid; gap: 14px; }
   .range { display: flex; align-items: center; gap: 8px; margin: 10px 0 6px; }
-  .range select { flex: 1; min-width: 0; padding: 10px; } .range .btn { width: auto; flex: none; }
+  .range input { flex: 1; min-width: 0; padding: 10px; text-align: center; font-size: 20px; font-weight: 700; } .range .btn { width: auto; flex: none; }
   .btn { border: 0; border-radius: var(--radius); padding: 20px; font: inherit; font-size: 20px; font-weight: 700; color: #fff; cursor: pointer; box-shadow: 0 4px 0 #0002; }
   .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #0002; }
   .btn.blue { background: var(--big); } .btn.purple { background: var(--small); }
@@ -310,12 +310,12 @@ function rangeCard(id) {
   const nums = numbers(id);
   if (!nums.length) return "";
   const r = rangeOf(id), from = r ? r.from : nums[0], to = r ? r.to : nums[nums.length - 1];
-  const opt = sel => nums.map(n => `<option value="${n}" ${n === sel ? "selected" : ""}>${n}</option>`).join("");
+  const box = (end, v) => `<input type="number" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" min="${nums[0]}" max="${nums[nums.length - 1]}" value="${v}" data-rng="${id}:${end}">`;
   const cnt = practiceWords(id).length;
   return `<div class="card"><b>📌 練習範圍（編號）</b>
-    <div class="range"><select data-rng="${id}:from">${opt(from)}</select><span>到</span><select data-rng="${id}:to">${opt(to)}</select>
+    <div class="range">${box("from", from)}<span>到</span>${box("to", to)}
       <button class="btn gray" data-rngall="${id}" style="font-size:16px;padding:10px 14px">全部</button></div>
-    <div class="muted">${r ? `現在練第 ${r.from}～${r.to} 號，共 ${cnt} 個字` : `現在練全部 ${cnt} 個字`}</div></div>`;
+    <div class="muted">可編號 ${nums[0]}～${nums[nums.length - 1]}。${r ? `現在練第 ${r.from}～${r.to} 號，共 ${cnt} 個字` : `現在練全部 ${cnt} 個字`}</div></div>`;
 }
 
 // --- 單字卡 ---
@@ -787,7 +787,9 @@ app.addEventListener("click", e => {
 app.addEventListener("change", e => {
   if (e.target.dataset.rng) {
     const [id, end] = e.target.dataset.rng.split(":"), nums = numbers(id), r = rangeOf(id) || { from: nums[0], to: nums[nums.length - 1] };
-    r[end] = Number(e.target.value);
+    const v = parseInt(e.target.value, 10);
+    if (!Number.isFinite(v)) return showKid(id);                  // 空白或亂打 → 還原
+    r[end] = Math.min(nums[nums.length - 1], Math.max(nums[0], v)); // 超出範圍就拉回最小／最大編號
     if (r.from > r.to) [r.from, r.to] = end === "from" ? [r.from, r.from] : [r.to, r.to];
     db[id].range = { from: r.from, to: r.to }; save(); return showKid(id);
   }
