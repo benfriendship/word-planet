@@ -12,7 +12,7 @@
 <style>
   :root {
     --bg: #fff8ec; --card: #ffffff; --ink: #3a2e22; --muted: #8a7a68;
-    --big: #4f8cff; --small: #ff7aa8; --accent: #ffb84d;
+    --big: #4f8cff; --small: #8a6cf2; --accent: #ffb84d;
     --ok: #34c17a; --bad: #ff5a5a; --radius: 22px;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -32,7 +32,7 @@
   .menu { display: grid; gap: 14px; }
   .btn { border: 0; border-radius: var(--radius); padding: 20px; font: inherit; font-size: 20px; font-weight: 700; color: #fff; cursor: pointer; box-shadow: 0 4px 0 #0002; }
   .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #0002; }
-  .btn.blue { background: var(--big); } .btn.pink { background: var(--small); }
+  .btn.blue { background: var(--big); } .btn.purple { background: var(--small); }
   .btn.orange { background: var(--accent); } .btn.gray { background: #b9ad9f; }
   .btn.green { background: var(--ok); }
   .btn small { display: block; font-weight: 400; font-size: 14px; opacity: .9; margin-top: 4px; }
@@ -92,7 +92,7 @@ if (/\bLine\//i.test(navigator.userAgent) && !/openExternalBrowser=1/.test(locat
 
 const KIDS = {
   big:   { label: "Ethan", old: "老大", born: 2016, color: "blue" },
-  small: { label: "Justin", old: "老二", born: 2018, color: "pink" }
+  small: { label: "Justin", old: "老二", born: 2018, color: "purple" }
 };
 
 // ===== 存檔（存在這支手機的瀏覽器裡）=====
