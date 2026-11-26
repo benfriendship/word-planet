@@ -30,6 +30,8 @@
   .kid b { font-size: 22px; display: block; }
   .kid span { color: var(--muted); font-size: 15px; }
   .menu { display: grid; gap: 14px; }
+  .range { display: flex; align-items: center; gap: 8px; margin: 10px 0 6px; }
+  .range select { flex: 1; min-width: 0; padding: 10px; } .range .btn { width: auto; flex: none; }
   .btn { border: 0; border-radius: var(--radius); padding: 20px; font: inherit; font-size: 20px; font-weight: 700; color: #fff; cursor: pointer; box-shadow: 0 4px 0 #0002; }
   .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #0002; }
   .btn.blue { background: var(--big); } .btn.purple { background: var(--small); }
@@ -118,6 +120,13 @@ for (const id in KIDS) {
 function save() { localStorage.setItem(KEY, JSON.stringify(db)); }
 
 function wordsOf(id) { return db[id].custom; }
+// 練習範圍：試算表有編號時，可以只練某幾號（例如 1～20）；沒設就練全部
+function rangeOf(id) { const r = db[id].range; return r && r.from != null && r.to != null ? r : null; }
+function practiceWords(id) {
+  const r = rangeOf(id);
+  return r ? wordsOf(id).filter(w => w.no != null && w.no >= r.from && w.no <= r.to) : wordsOf(id);
+}
+const numbers = id => [...new Set(wordsOf(id).map(w => w.no).filter(n => n != null))].sort((a, b) => a - b);
 function boxOf(id, en) { return db[id].box[en] || 0; }           // 0 = 還沒看過
 function setBox(id, en, b) { db[id].box[en] = Math.max(1, Math.min(5, b)); save(); }
 function learnedCount(id) { return wordsOf(id).filter(w => boxOf(id, w.en) >= 4).length; }
@@ -125,7 +134,7 @@ function learnedCount(id) { return wordsOf(id).filter(w => boxOf(id, w.en) >= 4)
 // 盒子越低越常出現：先挑低盒子，同盒子隨機；家長加的（老師的單字）再優先一點
 function pickWords(id, n) {
   const mine = new Set(db[id].custom.map(w => w.en));
-  return wordsOf(id)
+  return practiceWords(id)
     .map(w => ({ w, k: (boxOf(id, w.en) === 0 ? 0.5 : boxOf(id, w.en)) - (mine.has(w.en) ? 0.4 : 0), r: Math.random() }))
     .sort((a, b) => a.k - b.k || a.r - b.r)
     .slice(0, n).map(x => x.w);
@@ -290,16 +299,30 @@ function showKid(id) {
     <div class="card"><div style="display:flex;justify-content:space-between"><b>學會的單字</b><span>${got} / ${total}</span></div>
       <div class="progress"><i style="width:${total ? got / total * 100 : 0}%"></i></div>
       <div class="muted">答對越多次，單字就越「熟」；不熟的字會更常出現</div></div>
+    ${rangeCard(id)}
     <div class="menu">
       <button class="btn ${k.color}" data-go="cards">📖 單字卡<small>看圖、聽發音，一次 10 個字</small></button>
       <button class="btn orange" data-go="quiz">🎯 小測驗<small>${id === "small" ? "聽聲音、選圖片" : "選英文、拼拼看"}，答對拿星星</small></button>
     </div>`;
 }
 
+function rangeCard(id) {
+  const nums = numbers(id);
+  if (!nums.length) return "";
+  const r = rangeOf(id), from = r ? r.from : nums[0], to = r ? r.to : nums[nums.length - 1];
+  const opt = sel => nums.map(n => `<option value="${n}" ${n === sel ? "selected" : ""}>${n}</option>`).join("");
+  const cnt = practiceWords(id).length;
+  return `<div class="card"><b>📌 練習範圍（編號）</b>
+    <div class="range"><select data-rng="${id}:from">${opt(from)}</select><span>到</span><select data-rng="${id}:to">${opt(to)}</select>
+      <button class="btn gray" data-rngall="${id}" style="font-size:16px;padding:10px 14px">全部</button></div>
+    <div class="muted">${r ? `現在練第 ${r.from}～${r.to} 號，共 ${cnt} 個字` : `現在練全部 ${cnt} 個字`}</div></div>`;
+}
+
 // --- 單字卡 ---
 let deck = [], di = 0;
 function startCards() {
   if (!wordsOf(cur).length) return alert("還沒有單字喔！請爸爸媽媽到「⚙️ 家長區」加單字");
+  if (!practiceWords(cur).length) return alert("這個範圍沒有單字，換一個範圍試試看");
   deck = pickWords(cur, 10); di = 0; prefetchAudio(deck); showCard();
 }
 function showCard() {
@@ -328,8 +351,9 @@ function cardAnswer(ok) {
 // --- 小測驗 ---
 let qs = [], qi = 0, score = 0, locked = false;
 function startQuiz() {
-  const pool = wordsOf(cur);
+  const pool = wordsOf(cur);   // 選項的「錯誤答案」可以用範圍外的字
   if (pool.length < 4) return alert(`單字至少要 4 個才能測驗喔（現在有 ${pool.length} 個）\n請爸爸媽媽到「⚙️ 家長區」加單字`);
+  if (!practiceWords(cur).length) return alert("這個範圍沒有單字，換一個範圍試試看");
   qs = pickWords(cur, 10).map(w => {
     const others = shuffle(pool.filter(x => x.en !== w.en)).slice(0, 3);
     const opts = shuffle([w, ...others]);
@@ -525,30 +549,37 @@ async function syncSheet(id) {
   const names = [db[id].name, KIDS[id].label].map(lc);
   let r0 = -1, c0 = -1;
   for (let r = 0; r < Math.min(3, rows.length) && r0 < 0; r++)
-    rows[r].forEach((v, c) => { if (r0 < 0 && names.includes(lc(v))) { r0 = r; c0 = c; } });
+    rows[r].forEach((v, c) => { if (r0 < 0 && names.some(n => lc(v) === n || lc(v).startsWith(n + " "))) { r0 = r; c0 = c; } });
   const otherNames = Object.keys(KIDS).filter(k => k !== id).flatMap(k => [db[k].name, KIDS[k].label]).map(lc);
-  const otherHasSection = rows.slice(0, 3).some(row => row.some(v => otherNames.includes(lc(v))));
+  const otherHasSection = rows.slice(0, 3).some(row => row.some(v => otherNames.some(n => lc(v) === n || lc(v).startsWith(n + " "))));
   if (r0 < 0 && otherHasSection) return show(`⚠️ 試算表裡找不到「${KIDS[id].label}」分頁（分頁名稱和 A1 格都要寫 ${KIDS[id].label}）`);
   let ci = { en: 0, zh: 1, ex: -1 }, start = 0;
-  const hr = r0 >= 0 ? r0 + 1 : 0;                          // 標題列
+  const EN = /英文|english|word|單字/;
+  const hr = r0 < 0 ? 0 : (rows[r0] || []).some(v => EN.test(lc(v))) ? r0 : r0 + 1;   // 標題列（名字可以跟標題在同一列，例如「Ethan No.」）
   const lo = c0 >= 0 ? c0 : 0;                              // 這一區從哪一欄開始
   const head = (rows[hr] || []).map(lc);
   const find = re => head.findIndex((h, i) => i >= lo && (c0 < 0 || i <= lo + 2) && re.test(h));
-  if (find(/英文|english|word|單字/) >= 0) {
-    ci = { en: find(/英文|english|word|單字/), zh: find(/中文|chinese|meaning|意思|翻譯/), ex: find(/例句|example|sentence/) };
+  if (find(EN) >= 0) {
+    ci = { en: find(EN), zh: find(/中文|chinese|meaning|意思|翻譯/), ex: find(/例句|example|sentence/), no: find(/(^|\s)no\.?$|編號|序號|號碼|^#$/) };
     start = hr + 1;
   } else if (c0 >= 0) {
     ci = { en: c0, zh: c0 + 1, ex: -1 }; start = r0 + 1;
   }
   const have = new Set(wordsOf(id).map(w => w.en.toLowerCase()));
-  const added = [], noZh = [], now = Date.now(); let dup = 0;
+  const added = [], noZh = [], now = Date.now(); let dup = 0, renum = 0;
+  const byEn = new Map(wordsOf(id).map(w => [w.en.toLowerCase(), w]));
   for (const r of rows.slice(start)) {
     const en = (r[ci.en] || "").replace(/\s+/g, " ").trim(), zh = ci.zh >= 0 ? (r[ci.zh] || "") : "";
+    const nv = ci.no >= 0 ? parseInt(r[ci.no], 10) : NaN, no = Number.isFinite(nv) ? nv : undefined;
     if (!en || !/[A-Za-z]/.test(en)) continue;
-    if (have.has(en.toLowerCase())) { dup++; continue; }
+    if (have.has(en.toLowerCase())) {                       // 已經有的字：只更新編號
+      const w = byEn.get(en.toLowerCase());
+      if (w && no !== undefined && w.no !== no) { w.no = no; renum++; }
+      dup++; continue;
+    }
     if (!zh) { noZh.push(en); continue; }
     have.add(en.toLowerCase());
-    db[id].custom.push({ en, zh, emoji: "🔤", ex: ci.ex >= 0 ? (r[ci.ex] || "") : "", added: now });
+    db[id].custom.push({ en, zh, emoji: "🔤", ex: ci.ex >= 0 ? (r[ci.ex] || "") : "", added: now, ...(no !== undefined ? { no } : {}) });
     added.push(en);
   }
   db[id].lastSync = now; save();
@@ -556,6 +587,7 @@ async function syncSheet(id) {
   show([
     added.length ? `✅ 新增 ${added.length} 個：${list(added)}` : "✅ 沒有新單字",
     dup ? `已經有的 ${dup} 個，跳過` : "",
+    renum ? `🔢 更新了 ${renum} 個字的編號` : "",
     noZh.length ? `✏️ 還沒填中文的 ${noZh.length} 個（${list(noZh)}）先跳過，在試算表填好中文再按一次` : ""
   ].filter(Boolean).join("\n"));
 }
@@ -694,6 +726,7 @@ app.addEventListener("click", e => {
   if (d.go === "parent") return showParent();
   if (d.list) return showList(d.list);
   if (d.sync) { const inp = app.querySelector(`[data-sheet="${d.sync}"]`); if (inp) { db[d.sync].sheet = inp.value.trim(); save(); } return syncSheet(d.sync); }
+  if (d.rngall) { db[d.rngall].range = null; save(); return showKid(d.rngall); }
   if (d.say) return speak(d.say);
   if (d.sayzh) return speakZh(d.sayzh);
   if (d.card) return cardAnswer(d.card === "ok");
@@ -752,6 +785,12 @@ app.addEventListener("click", e => {
   }
 });
 app.addEventListener("change", e => {
+  if (e.target.dataset.rng) {
+    const [id, end] = e.target.dataset.rng.split(":"), nums = numbers(id), r = rangeOf(id) || { from: nums[0], to: nums[nums.length - 1] };
+    r[end] = Number(e.target.value);
+    if (r.from > r.to) [r.from, r.to] = end === "from" ? [r.from, r.from] : [r.to, r.to];
+    db[id].range = { from: r.from, to: r.to }; save(); return showKid(id);
+  }
   if (e.target.dataset.sheet) { db[e.target.dataset.sheet].sheet = e.target.value.trim(); save(); return; }
   const id = e.target.dataset.name;
   if (id) { db[id].name = e.target.value.trim() || KIDS[id].label; save(); }
@@ -766,6 +805,7 @@ if (!sheetFromLink() && !importFromLink()) showHome();
     await syncSheet(id);
     prefetchAudio(wordsOf(id));
     if (db[id].custom.length !== before && screen !== "parent" && !cur) showHome();
+    if (screen === "kid" && cur === id) showKid(id);          // 在孩子頁面時，更新練習範圍選單
   }
 })();
 </script>
