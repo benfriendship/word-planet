@@ -43,6 +43,8 @@
   .emoji { font-size: 96px; line-height: 1.1; }
   .word { font-size: 44px; font-weight: 800; letter-spacing: 1px; margin: 10px 0 4px; }
   .zh { font-size: 24px; color: var(--muted); }
+  .zhsay { border: 0; background: #f3ecff; color: inherit; font: inherit; font-weight: inherit; border-radius: 12px; padding: 2px 10px; cursor: pointer; }
+  .zhsay span { font-size: .75em; }
   .ex { font-size: 18px; margin-top: 14px; background: #fff8ec; padding: 12px; border-radius: 14px; }
   .speak { border: 0; background: #fff1d6; border-radius: 50%; width: 64px; height: 64px; font-size: 30px; margin-top: 14px; cursor: pointer; }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -190,7 +192,27 @@ function pickVoice() {
   };
   bestVoice = us.sort((a, b) => score(a) - score(b))[0] || vs.find(v => /^en/i.test(v.lang)) || null;
 }
-if (canTTS()) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+// 國語：優先台灣口音（iPhone 美佳、Google 國語（臺灣）），沒有再用其他中文語音
+let zhVoice = null;
+function pickZhVoice() {
+  const vs = speechSynthesis.getVoices().filter(v => /^(zh|cmn)/i.test(v.lang));
+  const score = v => (/TW|Hant/i.test(v.lang) ? 0 : /HK|yue/i.test(v.lang) ? 50 : 20)
+    - (/premium/i.test(v.name) ? 6 : /enhanced/i.test(v.name) ? 4 : 0) - (/Mei-?Jia|美佳/i.test(v.name) ? 2 : 0);
+  zhVoice = vs.sort((a, b) => score(a) - score(b))[0] || null;
+}
+if (canTTS()) { pickVoice(); pickZhVoice(); speechSynthesis.onvoiceschanged = () => { pickVoice(); pickZhVoice(); }; }
+function speakZh(text) {
+  player.pause();
+  if (!canTTS()) return toast("這個瀏覽器沒辦法念國語，請用 Chrome 或 Safari 打開單字星球");
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "zh-TW"; u.rate = 0.9;
+  if (!zhVoice) pickZhVoice();
+  if (zhVoice) u.voice = zhVoice;
+  speechSynthesis.speak(u);
+}
+// 中文字加上可以點的國語發音
+const zhBtn = (zh, extra = "") => zh ? `<button class="zhsay" data-sayzh="${esc(zh)}" aria-label="念國語" ${extra}>${esc(zh)} <span>🔈</span></button>` : "";
 function ttsSpeak(text) {
   if (!(canTTS())) return;
   speechSynthesis.cancel();
@@ -283,7 +305,7 @@ function showCard() {
     <div class="card flash pop">
       <div class="emoji">${w.emoji || "🔤"}</div>
       <div class="word">${esc(w.en)}</div>
-      <div class="zh">${esc(w.zh)}</div>
+      <div class="zh">${zhBtn(w.zh)}</div>
       ${cur === "big" && w.ex ? `<div class="ex">${esc(w.ex)}</div>` : ""}
       <button class="speak" data-say="${esc(w.en)}" aria-label="發音">🔊</button>
       ${cur === "big" && w.ex ? `<button class="speak" data-say="${esc(w.ex)}" aria-label="念例句" style="width:auto;border-radius:20px;padding:0 16px;font-size:16px">🔊 例句</button>` : ""}
@@ -352,16 +374,16 @@ function showQ() {
       <div class="opts">${opts.map(o => hasPic(o) ? `<button class="opt pic" data-ans="${esc(o.en)}">${o.emoji}</button>` : `<button class="opt" data-ans="${esc(o.en)}">${esc(o.en)}</button>`).join("")}</div>`;
     setTimeout(() => speak(w.en), 300);
   } else if (type === "picword") {
-    body = `<div class="emoji">${w.emoji}</div><div class="prompt">這個英文是？（${esc(w.zh)}）</div>
+    body = `<div class="emoji">${w.emoji}</div><div class="prompt">這個英文是？ ${zhBtn(w.zh)}</div>
       <div class="opts">${opts.map(o => `<button class="opt" data-ans="${esc(o.en)}">${esc(o.en)}</button>`).join("")}</div>`;
   } else if (type === "zh2en") {
-    body = `<div class="emoji" style="font-size:64px">${w.emoji}</div><div class="prompt">「${esc(w.zh)}」的英文是？</div>
+    body = `<div class="emoji" style="font-size:64px">${w.emoji}</div><div class="prompt">${zhBtn(w.zh)} 的英文是？</div>
       <div class="opts">${opts.map(o => `<button class="opt" data-ans="${esc(o.en)}">${esc(o.en)}</button>`).join("")}</div>`;
   } else if (type === "blank") {
     const { blanks } = qs[qi], missing = blanks.map(i => w.en[i].toLowerCase());
     const tiles = shuffle([...missing, ...blankDecoys(cur, missing)]);
     body = `<div class="emoji" style="font-size:56px">${hasPic(w) ? w.emoji : "✏️"}</div>
-      <div class="prompt">填空：「${esc(w.zh)}」</div>
+      <div class="prompt">填空：${zhBtn(w.zh)}</div>
       <button class="speak" data-say="${esc(w.en)}" style="margin:0 0 6px">🔊</button>
       <div class="slots ${w.en.length > 7 ? "long" : ""}" id="slots">${[...w.en].map((c, i) =>
         blanks.includes(i) ? `<div class="slot blank"></div>` : c === " " ? `<div class="slot gap"></div>` : `<div class="slot given">${esc(c)}</div>`).join("")}</div>
@@ -371,7 +393,7 @@ function showQ() {
     if (cur === "small") setTimeout(() => speak(w.en), 300);
   } else {
     const letters = shuffle(w.en.split(""));
-    body = `<div class="emoji" style="font-size:64px">${w.emoji}</div><div class="prompt">拼出「${esc(w.zh)}」</div>
+    body = `<div class="emoji" style="font-size:64px">${w.emoji}</div><div class="prompt">拼出 ${zhBtn(w.zh)}</div>
       <div class="slots ${w.en.length > 7 ? "long" : ""}" id="slots">${w.en.split("").map(() => `<div class="slot"></div>`).join("")}</div>
       <div class="tiles">${letters.map((c, i) => `<button class="tile" data-tile="${i}" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>
       <div style="margin-top:14px"><button class="btn gray" data-undo style="font-size:16px;padding:10px 18px">⌫ 退一格</button></div>`;
@@ -578,7 +600,7 @@ function level(id, en) {
 }
 function wordRow(id, w, i) {
   return `<li>${hasPic(w) ? `<span style="font-size:26px;flex:none">${w.emoji}</span>` : ""}
-    <span style="flex:1"><b style="font-size:19px">${esc(w.en)}</b>　${esc(w.zh)}<br>
+    <span style="flex:1"><button class="zhsay" data-say="${esc(w.en)}" aria-label="念英文" style="background:#e8f0ff;font-size:19px;font-weight:700">${esc(w.en)} <span>🔈</span></button> ${zhBtn(w.zh)}<br>
       <small class="muted">${level(id, w.en)}${w.added ? `　· ${fmtTime(w.added)} 加入` : i != null ? "　· 加入時間沒有記錄" : ""}</small></span>
     ${i != null ? `<button class="del" data-del="${id}:${i}" style="flex:none">刪除</button>` : ""}</li>`;
 }
@@ -669,6 +691,7 @@ app.addEventListener("click", e => {
   if (d.list) return showList(d.list);
   if (d.sync) { const inp = app.querySelector(`[data-sheet="${d.sync}"]`); if (inp) { db[d.sync].sheet = inp.value.trim(); save(); } return syncSheet(d.sync); }
   if (d.say) return speak(d.say);
+  if (d.sayzh) return speakZh(d.sayzh);
   if (d.card) return cardAnswer(d.card === "ok");
   if (d.ans !== undefined && !locked) {
     const ok = d.ans === qs[qi].w.en;
