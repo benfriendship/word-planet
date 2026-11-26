@@ -307,7 +307,7 @@ function showCard() {
   const w = deck[di];
   app.innerHTML = header(`📖 ${di + 1} / ${deck.length}`, "kid") + `
     <div class="card flash pop">
-      <div class="emoji">${w.emoji || "🔤"}</div>
+      ${hasPic(w) ? `<div class="emoji">${w.emoji}</div>` : ""}
       <div class="word">${esc(w.en)}</div>
       <div class="zh">${esc(w.zh)}</div>
       ${cur === "big" && w.ex ? `<div class="ex">${esc(w.ex)}</div>` : ""}
@@ -380,7 +380,7 @@ function showQ() {
     body = `<div class="emoji">${w.emoji}</div><div class="prompt">這個英文是？（${esc(w.zh)}）</div><div class="says inline">${zhSay(w.zh, "sm")}</div>
       <div class="opts">${opts.map(o => `<button class="opt" data-ans="${esc(o.en)}">${esc(o.en)}</button>`).join("")}</div>`;
   } else if (type === "zh2en") {
-    body = `<div class="emoji" style="font-size:64px">${w.emoji}</div><div class="prompt">「${esc(w.zh)}」的英文是？</div><div class="says inline">${zhSay(w.zh, "sm")}</div>
+    body = `${hasPic(w) ? `<div class="emoji" style="font-size:64px">${w.emoji}</div>` : ""}<div class="prompt">「${esc(w.zh)}」的英文是？</div><div class="says inline">${zhSay(w.zh, "sm")}</div>
       <div class="opts">${opts.map(o => `<button class="opt" data-ans="${esc(o.en)}">${esc(o.en)}</button>`).join("")}</div>`;
   } else if (type === "blank") {
     const { blanks } = qs[qi], missing = blanks.map(i => w.en[i].toLowerCase());
@@ -396,7 +396,7 @@ function showQ() {
     if (cur === "small") setTimeout(() => speak(w.en), 300);
   } else {
     const letters = shuffle(w.en.split(""));
-    body = `<div class="emoji" style="font-size:64px">${w.emoji}</div><div class="prompt">拼出「${esc(w.zh)}」</div><div class="says inline">${zhSay(w.zh, "sm")}</div>
+    body = `${hasPic(w) ? `<div class="emoji" style="font-size:64px">${w.emoji}</div>` : ""}<div class="prompt">拼出「${esc(w.zh)}」</div><div class="says inline">${zhSay(w.zh, "sm")}</div>
       <div class="slots ${w.en.length > 6 ? "long" : ""}" id="slots">${w.en.split("").map(() => `<div class="slot"></div>`).join("")}</div>
       <div class="tiles">${letters.map((c, i) => `<button class="tile" data-tile="${i}" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>
       <div style="margin-top:14px"><button class="btn gray" data-undo style="font-size:16px;padding:10px 18px">⌫ 退一格</button></div>`;
