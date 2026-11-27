@@ -301,8 +301,8 @@ function showKid(id) {
       <div class="muted">答對越多次，單字就越「熟」；不熟的字會更常出現</div></div>
     ${rangeCard(id)}
     <div class="menu">
-      <button class="btn ${k.color}" data-go="cards">📖 單字卡<small>看圖、聽發音，一次 10 個字</small></button>
-      <button class="btn orange" data-go="quiz">🎯 小測驗<small>${id === "small" ? "聽聲音、選圖片" : "選英文、拼拼看"}，答對拿星星</small></button>
+      <button class="btn ${k.color}" data-go="cards">📖 單字卡<small>${rangeOf(id) ? `範圍內 ${practiceWords(id).length} 個字全部看一遍` : "看圖、聽發音，一次 10 個字"}</small></button>
+      <button class="btn orange" data-go="quiz">🎯 小測驗<small>${rangeOf(id) ? `範圍內 ${practiceWords(id).length} 個字，每個考一次` : `${id === "small" ? "聽聲音、選圖片" : "選英文、拼拼看"}，答對拿星星`}</small></button>
     </div>`;
 }
 
@@ -323,7 +323,9 @@ let deck = [], di = 0;
 function startCards() {
   if (!wordsOf(cur).length) return alert("還沒有單字喔！請爸爸媽媽到「⚙️ 家長區」加單字");
   if (!practiceWords(cur).length) return alert("這個範圍沒有單字，換一個範圍試試看");
-  deck = pickWords(cur, 10); di = 0; prefetchAudio(deck); showCard();
+  // 有選範圍：範圍內每個字都看一遍（照編號順序）；沒選：挑 10 個最需要複習的
+  deck = rangeOf(cur) ? [...practiceWords(cur)].sort((a, b) => a.no - b.no) : pickWords(cur, 10);
+  di = 0; prefetchAudio(deck); showCard();
 }
 function showCard() {
   if (di >= deck.length) return showDone("📖 這組看完了！", "去做小測驗，拿星星吧 🎯", "quiz");
@@ -354,7 +356,8 @@ function startQuiz() {
   const pool = wordsOf(cur);   // 選項的「錯誤答案」可以用範圍外的字
   if (pool.length < 4) return alert(`單字至少要 4 個才能測驗喔（現在有 ${pool.length} 個）\n請爸爸媽媽到「⚙️ 家長區」加單字`);
   if (!practiceWords(cur).length) return alert("這個範圍沒有單字，換一個範圍試試看");
-  qs = pickWords(cur, 10).map(w => {
+  // 有選範圍：範圍內每個字都考一次（順序打亂）；沒選：出 10 題
+  qs = (rangeOf(cur) ? shuffle(practiceWords(cur)) : pickWords(cur, 10)).map(w => {
     const others = shuffle(pool.filter(x => x.en !== w.en)).slice(0, 3);
     const opts = shuffle([w, ...others]);
     let type; const r = Math.random(), canBlank = letterIdx(w.en).length >= 3;
@@ -390,7 +393,7 @@ function showQ() {
   locked = false;
   if (qi >= qs.length) {
     db[cur].stars += score; save();
-    const msg = score >= 9 ? "太厲害了！🏆" : score >= 6 ? "很棒喔！再一次會更好 💪" : "沒關係，多看幾次單字卡就會了 🌱";
+    const pct = score / qs.length, msg = pct >= 0.9 ? "太厲害了！🏆" : pct >= 0.6 ? "很棒喔！再一次會更好 💪" : "沒關係，多看幾次單字卡就會了 🌱";
     return showDone(`答對 ${score} / ${qs.length} 題`, `拿到 ⭐ × ${score}　${msg}`, "quiz");
   }
   const { w, opts, type } = qs[qi];
